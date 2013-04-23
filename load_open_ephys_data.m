@@ -87,7 +87,7 @@ if strcmp(filetype, 'events')
         
         index = index + 1;
         
-        timestamps(index) = fread(fid, 1, 'int64');
+        timestamps(index) = fread(fid, 1, 'uint64', 0, 'l');
         
         if (use_updated_format)
             info.sampleNum(index) = fread(fid, 1, 'int16'); % implemented after 11/16/12
@@ -126,7 +126,7 @@ elseif strcmp(filetype, 'continuous')
      
         index = index+1;
         
-        info.ts(index) = fread(fid, 1, 'int64');
+        info.ts(index) = fread(fid, 1, 'uint64', 0, 'l');
         nsamples = fread(fid, 1, 'int16');
         
         block = fread(fid, nsamples, 'int16', 0, 'b');
