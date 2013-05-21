@@ -100,8 +100,6 @@ if strcmp(filetype, 'events')
         
     end
     
-    timestamps = timestamps./1e6; % convert from microseconds to seconds
-    
 %-----------------------------------------------------------------------
 %---------------------- CONTINUOUS DATA --------------------------------
 %-----------------------------------------------------------------------
@@ -127,12 +125,12 @@ elseif strcmp(filetype, 'continuous')
         index = index+1;
         
         info.ts(index) = fread(fid, 1, 'uint64', 0, 'l');
-        nsamples = fread(fid, 1, 'int16');
+        nsamples = fread(fid, 1, 'int16',0,'l');
         
         block = fread(fid, nsamples, 'int16', 0, 'b');
         
         if (use_updated_format)
-            fread(fid, 10, 'uint8');
+            fread(fid, 10, 'char*1');
         end
         
         data(current_sample+1:current_sample+nsamples) = block;
@@ -159,8 +157,6 @@ elseif strcmp(filetype, 'continuous')
     end
     
     % NOTE: the timestamps for the last record will not be interpolated
-    
-    timestamps = timestamps./1e6; % convert from microseconds to seconds
     
 else
     
