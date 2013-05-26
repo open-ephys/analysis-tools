@@ -122,10 +122,16 @@ elseif strcmp(filetype, 'continuous')
       
     while ftell(fid) + 4096 < filesize % at least one record remains
      
-        index = index+1;
+        index = index + 1;
         
         info.ts(index) = fread(fid, 1, 'uint64', 0, 'l');
         nsamples = fread(fid, 1, 'int16',0,'l');
+        
+        if nsamples < 0 || nsamples > 10000
+            disp(['Loading failed at block number ' int2str(index) '. Found ' ...
+                  int2str(nsamples) ' samples.'])
+              break;
+        end
         
         block = fread(fid, nsamples, 'int16', 0, 'b');
         
