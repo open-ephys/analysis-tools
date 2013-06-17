@@ -1,7 +1,7 @@
 function [data, timestamps, info] = load_open_ephys_data(filename)
 
 %
-% [data, timestamps, info] = load_open_ephys_data(filename, use_updated_format)
+% [data, timestamps, info] = load_open_ephys_data(filename)
 %
 %   Loads continuous or event data files into Matlab.
 %
@@ -9,19 +9,13 @@ function [data, timestamps, info] = load_open_ephys_data(filename)
 %     
 %     filename: path to file
 %
-%     use_updated_format: 0 or 1, defaults to 1 if not specified
-%          - 0 indicates no sample numbers in event files and no record
-%              markers in continuous files
-%          - 1 indicates sample numbers in events files and record markers
-%              in continuous files
-%
 %
 %   Outputs:
 %
 %     data: either an array continuous samples, a matrix of spike waveforms,
 %           or an array of event channels
 %
-%     timestamps: sample time in seconds
+%     timestamps: sample number
 %
 %     info: structure with header and other information
 %
