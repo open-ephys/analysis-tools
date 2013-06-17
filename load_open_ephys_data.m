@@ -235,9 +235,7 @@ elseif strcmp(filetype, 'spikes')
         idx = idx + num_channels*2*2;
         
         data(current_spike, :, :) = double(wv-32768)./gain;
-        
-        junk = fread(fid, 512-idx, 'uint8', 0, 'l');
-        
+
     end
     
 else
