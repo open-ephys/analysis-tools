@@ -160,7 +160,7 @@ elseif strcmp(filetype, 'continuous')
                  
                  if last_ten_bytes(10) == RECORD_MARKER(end);
                     
-                     sq_err = sum((last_ten_bytes - record_marker).^2);
+                     sq_err = sum((last_ten_bytes - RECORD_MARKER).^2);
                      
                      if (sq_err == 0)
                          disp(['   Found a record marker after ' int2str(bytenum) ' bytes!']);
