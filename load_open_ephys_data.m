@@ -139,15 +139,12 @@ elseif strcmp(filetype, 'continuous')
         info.ts(index) = fread(fid, 1, 'uint64', 0, 'l');
         nsamples = fread(fid, 1, 'int16',0,'l');
         
-        if nsamples ~= 1024 %< 0 || nsamples > 10000
+        if nsamples ~= 1024
             
             disp(['  Found corrupted record...searching for record marker.']);
  
-            % switch to searching for record markers
+             % switch to searching for record markers
             
-            fseek(fid, 1034, 'bof');
-  
-             
              last_ten_bytes = zeros(1,10)';
              record_marker = [0 1 2 3 4 5 6 7 8 255]';
              
@@ -166,18 +163,20 @@ elseif strcmp(filetype, 'continuous')
                      if (sq_err == 0)
                          disp(['   Found a record marker after ' int2str(bytenum) ' bytes!']);
                          go_back_to_start_of_loop = 1;
-                         break;
+                         break; % from 'for' loop
                      end
                  end
              end
              
-             % if we made it through
+             % if we made it through the length of 5 records without
+             % finding a marker, abandon ship.
              if bytenum == RECORD_SIZE*5
                             
                   disp(['Loading failed at block number ' int2str(index) '. Found ' ...
                    int2str(nsamples) ' samples.'])
               
-                 break;
+                 break; % from 'while' loop
+                 
              end
              
              
