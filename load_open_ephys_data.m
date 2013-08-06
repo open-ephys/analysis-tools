@@ -56,13 +56,17 @@ filetype = filename(max(strfind(filename,'.'))+1:end); % parse filetype
 fid = fopen(filename);
 filesize = getfilesize(fid);
 
+% constants
+NUM_HEADER_BYTES = 1024;
+SAMPLES_PER_RECORD = 1024;
+RECORD_SIZE = 8 + 16 + SAMPLES_PER_RECORD*2 + 10; % size of each continuous record in bytes
+RECORD_MARKER = [0 1 2 3 4 5 6 7 8 255]';
+
 % constants for pre-allocating matrices:
 MAX_NUMBER_OF_SPIKES = 1e6; 
+MAX_NUMBER_OF_RECORDS = 1e4;
 MAX_NUMBER_OF_CONTINUOUS_SAMPLES = 10e6;
 MAX_NUMBER_OF_EVENTS = 1e5;
-
-% other constants
-RECORD_SIZE = 8 + 16 + 1024*2 + 10; % size of each continuous record in bytes
 
 %-----------------------------------------------------------------------
 %------------------------- EVENT DATA ----------------------------------
@@ -74,7 +78,7 @@ if strcmp(filetype, 'events')
     
     index = 0;
     
-    hdr = fread(fid, 1024, 'char*1');
+    hdr = fread(fid, NUM_HEADER_BYTES, 'char*1');
     eval(char(hdr'));
     info.header = header;
     
@@ -118,36 +122,34 @@ elseif strcmp(filetype, 'continuous')
     
     index = 0;
     
-    % pre-allocate samples for data
-    max_samples = MAX_NUMBER_OF_CONTINUOUS_SAMPLES;
-    
-    hdr = fread(fid, 1024, 'char*1');
+    hdr = fread(fid, NUM_HEADER_BYTES, 'char*1');
     eval(char(hdr'));
     info.header = header;
     
-    data = zeros(max_samples,1);
-    
+    % pre-allocate space for continuous data
+    data = zeros(MAX_NUMBER_OF_CONTINUOUS_SAMPLES, 1);
+    info.ts = zeros(1, MAX_NUMBER_OF_RECORDS);
+    info.nsamples = zeros(1, MAX_NUMBER_OF_RECORDS);
+
     current_sample = 0;
     
-      
-    while ftell(fid) + 4096 < filesize % at least one record remains
+    while ftell(fid) + RECORD_SIZE < filesize % at least one record remains
      
         go_back_to_start_of_loop = 0;
         
         index = index + 1;
         
-        info.ts(index) = fread(fid, 1, 'uint64', 0, 'l');
+        timestamp = fread(fid, 1, 'uint64', 0, 'l');
         nsamples = fread(fid, 1, 'int16',0,'l');
         
-        if nsamples ~= 1024
+        if nsamples ~= SAMPLES_PER_RECORD
             
             disp(['  Found corrupted record...searching for record marker.']);
  
              % switch to searching for record markers
             
-             last_ten_bytes = zeros(1,10)';
-             record_marker = [0 1 2 3 4 5 6 7 8 255]';
-             
+             last_ten_bytes = zeros(size(RECORD_MARKER));
+
              for bytenum = 1:RECORD_SIZE*5
                  
                  byte = fread(fid, 1, 'uint8');
@@ -156,7 +158,7 @@ elseif strcmp(filetype, 'continuous')
                  
                  last_ten_bytes(10) = double(byte);
                  
-                 if last_ten_bytes(10) == 255
+                 if last_ten_bytes(10) == RECORD_MARKER(end);
                     
                      sq_err = sum((last_ten_bytes - record_marker).^2);
                      
@@ -168,7 +170,7 @@ elseif strcmp(filetype, 'continuous')
                  end
              end
              
-             % if we made it through the length of 5 records without
+             % if we made it through the approximate length of 5 records without
              % finding a marker, abandon ship.
              if bytenum == RECORD_SIZE*5
                             
@@ -184,14 +186,15 @@ elseif strcmp(filetype, 'continuous')
         
         if ~go_back_to_start_of_loop
         
-            block = fread(fid, nsamples, 'int16', 0, 'b');
-
-            fread(fid, 10, 'char*1');
+            block = fread(fid, nsamples, 'int16', 0, 'b'); % read in data
+ 
+            fread(fid, 10, 'char*1'); % read in record marker and discard
 
             data(current_sample+1:current_sample+nsamples) = block;
 
             current_sample = current_sample + nsamples;
 
+            info.ts(index) = timestamp;
             info.nsamples(index) = nsamples;
         
         end
@@ -199,7 +202,9 @@ elseif strcmp(filetype, 'continuous')
     end
     
     % crop data to the correct size
-    data = data(1:current_sample); 
+    data(current_sample+1:end) = [ ];
+    info.ts(index+1:end) = [ ];
+    info.nsamples(index+1:end) = [ ];
     
     timestamps = nan(size(data));
     
@@ -227,12 +232,17 @@ elseif strcmp(filetype, 'spikes')
     
     index = 0;
     
-    hdr = fread(fid, 1024, 'char*1');
+    hdr = fread(fid, NUM_HEADER_BYTES, 'char*1');
     eval(char(hdr'));
     info.header = header;
     
-    % data = 0;
-    % timestamps = 0;
+    num_channels = info.header.num_channels;
+    %num_samples = **NOT CURRENTLY WRITTEN TO HEADER**
+    
+    % pre-allocate space for spike data
+    %data = zeros(MAX_NUMBER_OF_SPIKES, num_samples, num_channels);
+    timestamps = zeros(1, MAX_NUMBER_OF_SPIKES);
+    info.source = zeros(1, MAX_NUMBER_OF_SPIKES);
     
     current_spike = 0;
     
@@ -283,6 +293,10 @@ elseif strcmp(filetype, 'spikes')
 
     end
     
+    %data(current_spike+1:end,:,:) = [ ];
+    timestamps(current_spike+1:end) = [ ];
+    info.source(current_spike+1:end) = [ ];
+    
 else
     
     error('File extension not recognized. Please use a ''.continuous'', ''.spikes'', or ''.events'' file.');
@@ -292,7 +306,6 @@ end
 fclose(fid); % close the file
 
 end
-
 
 
 function filesize = getfilesize(fid)
