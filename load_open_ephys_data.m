@@ -61,6 +61,9 @@ MAX_NUMBER_OF_SPIKES = 1e6;
 MAX_NUMBER_OF_CONTINUOUS_SAMPLES = 10e6;
 MAX_NUMBER_OF_EVENTS = 1e5;
 
+% other constants
+RECORD_SIZE = 8 + 16 + 1024*2 + 10; % size of each continuous record in bytes
+
 %-----------------------------------------------------------------------
 %------------------------- EVENT DATA ----------------------------------
 %-----------------------------------------------------------------------
@@ -111,7 +114,7 @@ if strcmp(filetype, 'events')
     
 elseif strcmp(filetype, 'continuous')
     
-    disp(['Loading continuous file...']);
+    disp(['Loading ' filename '...']);
     
     index = 0;
     
@@ -125,31 +128,74 @@ elseif strcmp(filetype, 'continuous')
     data = zeros(max_samples,1);
     
     current_sample = 0;
+    
       
     while ftell(fid) + 4096 < filesize % at least one record remains
      
+        go_back_to_start_of_loop = 0;
+        
         index = index + 1;
         
         info.ts(index) = fread(fid, 1, 'uint64', 0, 'l');
         nsamples = fread(fid, 1, 'int16',0,'l');
         
-        if nsamples < 0 || nsamples > 10000
-            disp(['Loading failed at block number ' int2str(index) '. Found ' ...
-                  int2str(nsamples) ' samples.'])
-              break;
+        if nsamples ~= 1024 %< 0 || nsamples > 10000
+            
+            disp(['  Found corrupted record...searching for record marker.']);
+ 
+            % switch to searching for record markers
+            
+            fseek(fid, 1034, 'bof');
+  
+             
+             last_ten_bytes = zeros(1,10)';
+             record_marker = [0 1 2 3 4 5 6 7 8 255]';
+             
+             for bytenum = 1:RECORD_SIZE*5
+                 
+                 byte = fread(fid, 1, 'uint8');
+                 
+                 last_ten_bytes = circshift(last_ten_bytes,-1);
+                 
+                 last_ten_bytes(10) = double(byte);
+                 
+                 if last_ten_bytes(10) == 255
+                    
+                     sq_err = sum((last_ten_bytes - record_marker).^2);
+                     
+                     if (sq_err == 0)
+                         disp(['   Found a record marker after ' int2str(bytenum) ' bytes!']);
+                         go_back_to_start_of_loop = 1;
+                         break;
+                     end
+                 end
+             end
+             
+             % if we made it through
+             if bytenum == RECORD_SIZE*5
+                            
+                  disp(['Loading failed at block number ' int2str(index) '. Found ' ...
+                   int2str(nsamples) ' samples.'])
+              
+                 break;
+             end
+             
+             
         end
         
-        block = fread(fid, nsamples, 'int16', 0, 'b');
+        if ~go_back_to_start_of_loop
         
-        if (use_updated_format)
+            block = fread(fid, nsamples, 'int16', 0, 'b');
+
             fread(fid, 10, 'char*1');
+
+            data(current_sample+1:current_sample+nsamples) = block;
+
+            current_sample = current_sample + nsamples;
+
+            info.nsamples(index) = nsamples;
+        
         end
-        
-        data(current_sample+1:current_sample+nsamples) = block;
-        
-        current_sample = current_sample + nsamples;
-        
-        info.nsamples(index) = nsamples;
         
     end
     
