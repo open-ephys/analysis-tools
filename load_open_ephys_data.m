@@ -237,10 +237,10 @@ elseif strcmp(filetype, 'spikes')
     info.header = header;
     
     num_channels = info.header.num_channels;
-    %num_samples = **NOT CURRENTLY WRITTEN TO HEADER**
+    num_samples = 40; % **NOT CURRENTLY WRITTEN TO HEADER**
     
     % pre-allocate space for spike data
-    %data = zeros(MAX_NUMBER_OF_SPIKES, num_samples, num_channels);
+    data = zeros(MAX_NUMBER_OF_SPIKES, num_samples, num_channels);
     timestamps = zeros(1, MAX_NUMBER_OF_SPIKES);
     info.source = zeros(1, MAX_NUMBER_OF_SPIKES);
     
@@ -293,7 +293,7 @@ elseif strcmp(filetype, 'spikes')
 
     end
     
-    %data(current_spike+1:end,:,:) = [ ];
+    data(current_spike+1:end,:,:) = [ ];
     timestamps(current_spike+1:end) = [ ];
     info.source(current_spike+1:end) = [ ];
     
