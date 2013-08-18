@@ -284,8 +284,8 @@ elseif strcmp(filetype, 'spikes')
         current_spike = current_spike + 1;
         
         %pre-allocate in blocks
-        if mod(current_spike,SPIKE_PREALLOC_INTERVAL)==2 % dont pre-alloc on the 1st because we dont have the N samples yet so we'll take that from the spike record
-            data(current_spike+SPIKE_PREALLOC_INTERVAL+1, 1, num_channels)=0;
+        if mod(current_spike,SPIKE_PREALLOC_INTERVAL) == 2 % dont pre-alloc on the 1st because we dont have the N samples yet so we'll take that from the spike record
+            data(current_spike+SPIKE_PREALLOC_INTERVAL+1, 1, num_channels) = 0;
         end;
         
         
