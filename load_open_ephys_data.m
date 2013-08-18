@@ -82,6 +82,12 @@ if strcmp(filetype, 'events')
     eval(char(hdr'));
     info.header = header;
     
+    if (isfield(info.header, 'version'))
+        version = info.header.version;
+    else
+        version = 0.0;
+    end
+    
     % pre-allocate space for event data
     data = zeros(MAX_NUMBER_OF_EVENTS, 1);
     timestamps = zeros(MAX_NUMBER_OF_EVENTS, 1);
@@ -94,7 +100,12 @@ if strcmp(filetype, 'events')
         
         index = index + 1;
         
-        timestamps(index) = fread(fid, 1, 'uint64', 0, 'l');
+        if (version >= 0.1)
+            timestamps(index) = fread(fid, 1, 'int64', 0, 'l');
+        else
+            timestamps(index) = fread(fid, 1, 'uint64', 0, 'l');
+        end
+        
         
         info.sampleNum(index) = fread(fid, 1, 'int16'); % implemented after 11/16/12
         info.eventType(index) = fread(fid, 1, 'uint8');
@@ -126,6 +137,12 @@ elseif strcmp(filetype, 'continuous')
     eval(char(hdr'));
     info.header = header;
     
+    if (isfield(info.header, 'version'))
+        version = info.header.version;
+    else
+        version = 0.0;
+    end
+    
     % pre-allocate space for continuous data
     data = zeros(MAX_NUMBER_OF_CONTINUOUS_SAMPLES, 1);
     info.ts = zeros(1, MAX_NUMBER_OF_RECORDS);
@@ -139,8 +156,14 @@ elseif strcmp(filetype, 'continuous')
         
         index = index + 1;
         
-        timestamp = fread(fid, 1, 'uint64', 0, 'l');
-        nsamples = fread(fid, 1, 'int16',0,'l');
+        if (version >= 0.1)
+            timestamp = fread(fid, 1, 'int64', 0, 'l');
+            nsamples = fread(fid, 1, 'uint16',0,'l');
+        else
+            timestamp = fread(fid, 1, 'uint64', 0, 'l');
+            nsamples = fread(fid, 1, 'int16',0,'l');
+        end
+       
         
         if nsamples ~= SAMPLES_PER_RECORD
             
@@ -185,7 +208,7 @@ elseif strcmp(filetype, 'continuous')
         end
         
         if ~go_back_to_start_of_loop
-        
+            
             block = fread(fid, nsamples, 'int16', 0, 'b'); % read in data
  
             fread(fid, 10, 'char*1'); % read in record marker and discard
@@ -236,6 +259,12 @@ elseif strcmp(filetype, 'spikes')
     eval(char(hdr'));
     info.header = header;
     
+    if (isfield(info.header, 'version'))
+        version = info.header.version;
+    else
+        version = 0.0;
+    end
+    
     num_channels = info.header.num_channels;
     num_samples = 40; % **NOT CURRENTLY WRITTEN TO HEADER**
     
@@ -256,7 +285,12 @@ elseif strcmp(filetype, 'spikes')
         
         idx = idx + 1;
         
-        timestamps(current_spike) = fread(fid, 1, 'uint64', 0, 'l');
+        if (version >= 0.1)
+           timestamps(current_spike) = fread(fid, 1, 'int64', 0, 'l');
+        else
+           timestamps(current_spike) = fread(fid, 1, 'uint64', 0, 'l');
+        end
+        
         
         idx = idx + 8;
         
