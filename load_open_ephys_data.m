@@ -6,7 +6,7 @@ function [data, timestamps, info] = load_open_ephys_data(filename)
 %   Loads continuous or event data files into Matlab.
 %
 %   Inputs:
-%     
+%
 %     filename: path to file
 %
 %
@@ -22,34 +22,34 @@ function [data, timestamps, info] = load_open_ephys_data(filename)
 %
 %
 %   DISCLAIMER:
-%   
+%
 %   Both the Open Ephys data format and this m-file are works in progress.
-%   There's no guarantee that they will preserve the integrity of your 
+%   There's no guarantee that they will preserve the integrity of your
 %   data. They will both be updated rather frequently, so try to use the
 %   most recent version of this file, if possible.
-%  
+%
 %
 
-% 
+%
 %     ------------------------------------------------------------------
-% 
+%
 %     Copyright (C) 2013 Open Ephys
-% 
+%
 %     ------------------------------------------------------------------
-% 
+%
 %     This program is free software: you can redistribute it and/or modify
 %     it under the terms of the GNU General Public License as published by
 %     the Free Software Foundation, either version 3 of the License, or
 %     (at your option) any later version.
-% 
+%
 %     This program is distributed in the hope that it will be useful,
 %     but WITHOUT ANY WARRANTY; without even the implied warranty of
 %     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 %     GNU General Public License for more details.
-% 
+%
 %     You should have received a copy of the GNU General Public License
 %     along with this program.  If not, see <http://www.gnu.org/licenses/>.
-% 
+%
 
 filetype = filename(max(strfind(filename,'.'))+1:end); % parse filetype
 
@@ -63,10 +63,11 @@ RECORD_SIZE = 8 + 16 + SAMPLES_PER_RECORD*2 + 10; % size of each continuous reco
 RECORD_MARKER = [0 1 2 3 4 5 6 7 8 255]';
 
 % constants for pre-allocating matrices:
-MAX_NUMBER_OF_SPIKES = 1e6; 
+MAX_NUMBER_OF_SPIKES = 1e6;
 MAX_NUMBER_OF_RECORDS = 1e4;
 MAX_NUMBER_OF_CONTINUOUS_SAMPLES = 10e6;
-MAX_NUMBER_OF_EVENTS = 1e5;
+MAX_NUMBER_OF_EVENTS = 1e6;
+SPIKE_PREALLOC_INTERVAL=1e6;
 
 %-----------------------------------------------------------------------
 %------------------------- EVENT DATA ----------------------------------
@@ -121,11 +122,11 @@ if strcmp(filetype, 'events')
     info.sampleNum(index+1:end) = [ ];
     info.nodeId(index+1:end) = [ ];
     info.eventType(index+1:end) = [ ];
-    info.eventId(index+1:end) = [ ];    
+    info.eventId(index+1:end) = [ ];
     
-%-----------------------------------------------------------------------
-%---------------------- CONTINUOUS DATA --------------------------------
-%-----------------------------------------------------------------------
+    %-----------------------------------------------------------------------
+    %---------------------- CONTINUOUS DATA --------------------------------
+    %-----------------------------------------------------------------------
     
 elseif strcmp(filetype, 'continuous')
     
@@ -147,11 +148,11 @@ elseif strcmp(filetype, 'continuous')
     data = zeros(MAX_NUMBER_OF_CONTINUOUS_SAMPLES, 1);
     info.ts = zeros(1, MAX_NUMBER_OF_RECORDS);
     info.nsamples = zeros(1, MAX_NUMBER_OF_RECORDS);
-
+    
     current_sample = 0;
     
     while ftell(fid) + RECORD_SIZE < filesize % at least one record remains
-     
+        
         go_back_to_start_of_loop = 0;
         
         index = index + 1;
@@ -168,58 +169,58 @@ elseif strcmp(filetype, 'continuous')
         if nsamples ~= SAMPLES_PER_RECORD
             
             disp(['  Found corrupted record...searching for record marker.']);
- 
-             % switch to searching for record markers
             
-             last_ten_bytes = zeros(size(RECORD_MARKER));
-
-             for bytenum = 1:RECORD_SIZE*5
-                 
-                 byte = fread(fid, 1, 'uint8');
-                 
-                 last_ten_bytes = circshift(last_ten_bytes,-1);
-                 
-                 last_ten_bytes(10) = double(byte);
-                 
-                 if last_ten_bytes(10) == RECORD_MARKER(end);
+            % switch to searching for record markers
+            
+            last_ten_bytes = zeros(size(RECORD_MARKER));
+            
+            for bytenum = 1:RECORD_SIZE*5
+                
+                byte = fread(fid, 1, 'uint8');
+                
+                last_ten_bytes = circshift(last_ten_bytes,-1);
+                
+                last_ten_bytes(10) = double(byte);
+                
+                if last_ten_bytes(10) == RECORD_MARKER(end);
                     
-                     sq_err = sum((last_ten_bytes - RECORD_MARKER).^2);
-                     
-                     if (sq_err == 0)
-                         disp(['   Found a record marker after ' int2str(bytenum) ' bytes!']);
-                         go_back_to_start_of_loop = 1;
-                         break; % from 'for' loop
-                     end
-                 end
-             end
-             
-             % if we made it through the approximate length of 5 records without
-             % finding a marker, abandon ship.
-             if bytenum == RECORD_SIZE*5
-                            
-                  disp(['Loading failed at block number ' int2str(index) '. Found ' ...
-                   int2str(nsamples) ' samples.'])
-              
-                 break; % from 'while' loop
-                 
-             end
-             
-             
+                    sq_err = sum((last_ten_bytes - RECORD_MARKER).^2);
+                    
+                    if (sq_err == 0)
+                        disp(['   Found a record marker after ' int2str(bytenum) ' bytes!']);
+                        go_back_to_start_of_loop = 1;
+                        break; % from 'for' loop
+                    end
+                end
+            end
+            
+            % if we made it through the approximate length of 5 records without
+            % finding a marker, abandon ship.
+            if bytenum == RECORD_SIZE*5
+                
+                disp(['Loading failed at block number ' int2str(index) '. Found ' ...
+                    int2str(nsamples) ' samples.'])
+                
+                break; % from 'while' loop
+                
+            end
+            
+            
         end
         
         if ~go_back_to_start_of_loop
             
             block = fread(fid, nsamples, 'int16', 0, 'b'); % read in data
- 
+            
             fread(fid, 10, 'char*1'); % read in record marker and discard
-
+            
             data(current_sample+1:current_sample+nsamples) = block;
-
+            
             current_sample = current_sample + nsamples;
-
+            
             info.ts(index) = timestamp;
             info.nsamples(index) = nsamples;
-        
+            
         end
         
     end
@@ -234,7 +235,7 @@ elseif strcmp(filetype, 'continuous')
     current_sample = 0;
     
     for record = 1:length(info.ts)-1
-       
+        
         ts_interp = linspace(info.ts(record),info.ts(record+1),info.nsamples(record)+1);
         
         timestamps(current_sample+1:current_sample+info.nsamples(record)) = ts_interp(1:end-1);
@@ -243,14 +244,14 @@ elseif strcmp(filetype, 'continuous')
     end
     
     % NOTE: the timestamps for the last record will not be interpolated
-   
     
-%-----------------------------------------------------------------------
-%--------------------------- SPIKE DATA --------------------------------
-%-----------------------------------------------------------------------
+    
+    %-----------------------------------------------------------------------
+    %--------------------------- SPIKE DATA --------------------------------
+    %-----------------------------------------------------------------------
     
 elseif strcmp(filetype, 'spikes')
-        
+    
     disp(['Loading spikes file...']);
     
     index = 0;
@@ -269,16 +270,25 @@ elseif strcmp(filetype, 'spikes')
     num_samples = 40; % **NOT CURRENTLY WRITTEN TO HEADER**
     
     % pre-allocate space for spike data
+    
     data = zeros(MAX_NUMBER_OF_SPIKES, num_samples, num_channels);
     timestamps = zeros(1, MAX_NUMBER_OF_SPIKES);
     info.source = zeros(1, MAX_NUMBER_OF_SPIKES);
     
+    
+    
     current_spike = 0;
     
     while ftell(fid) + 512 < filesize % at least one record remains
-     
+        
         current_spike = current_spike + 1;
-     
+        
+        %pre-allocate in blocks
+        if mod(current_spike,SPIKE_PREALLOC_INTERVAL)==2 % dont pre-alloc on the 1st because we dont have the N samples yet so we'll take that from the spike record
+            data(current_spike+SPIKE_PREALLOC_INTERVAL+1, 1, num_channels)=0;
+        end;
+        
+        
         idx = 0;
         
         event_type = fread(fid, 1, 'uint8'); % always equal to 4; ignore
@@ -305,8 +315,8 @@ elseif strcmp(filetype, 'spikes')
         
         if num_samples < 1 || num_samples > 10000
             disp(['Loading failed at block number ' int2str(current_spike) '. Found ' ...
-                  int2str(num_samples) ' samples.'])
-              break;
+                int2str(num_samples) ' samples.'])
+            break;
         end
         
         waveforms = fread(fid, num_channels*num_samples, 'uint16', 0, 'l');
@@ -317,15 +327,20 @@ elseif strcmp(filetype, 'spikes')
         
         channel_gains = fread(fid, num_channels, 'uint16', 0, 'l');
         
-        gain = double(repmat(channel_gains', num_samples, 1))/1000;
+        % gain = double(repmat(channel_gains', num_samples, 1))/1000;
         
         channel_thresholds = fread(fid, num_channels, 'uint16', 0, 'l');
         
         idx = idx + num_channels*2*2;
         
-        data(current_spike, :, :) = double(wv-32768)./gain;
-
+        %data(current_spike, :, :) = double(wv-32768)./gain;
+        data(current_spike, :, :) = wv;
     end
+    
+    for ch=1:num_channels % scale the waveforms
+        data(:, :, ch)=double(data(:, :, ch)-32768)./(channel_gains(ch)/1000);
+    end;
+    
     
     data(current_spike+1:end,:,:) = [ ];
     timestamps(current_spike+1:end) = [ ];
