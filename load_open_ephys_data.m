@@ -15,7 +15,7 @@ function [data, timestamps, info] = load_open_ephys_data(filename)
 %     data: either an array continuous samples, a matrix of spike waveforms,
 %           or an array of event channels
 %
-%     timestamps: sample number
+%     timestamps: in seconds
 %
 %     info: structure with header and other information
 %
@@ -341,10 +341,11 @@ elseif strcmp(filetype, 'spikes')
         data(:, :, ch)=double(data(:, :, ch)-32768)./(channel_gains(ch)/1000);
     end;
     
-    
     data(current_spike+1:end,:,:) = [ ];
     timestamps(current_spike+1:end) = [ ];
     info.source(current_spike+1:end) = [ ];
+    
+    
     
 else
     
@@ -353,6 +354,8 @@ else
 end
 
 fclose(fid); % close the file
+
+timestamps = timestamps./info.header.sampleRate; % convert to seconds
 
 end
 
