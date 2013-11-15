@@ -66,7 +66,7 @@ MAX_NUMBER_OF_SPIKES = 1e6;
 MAX_NUMBER_OF_RECORDS = 1e4;
 MAX_NUMBER_OF_CONTINUOUS_SAMPLES = 10e6;
 MAX_NUMBER_OF_EVENTS = 1e6;
-SPIKE_PREALLOC_INTERVAL=1e6;
+SPIKE_PREALLOC_INTERVAL = 1e6;
 
 %-----------------------------------------------------------------------
 %------------------------- EVENT DATA ----------------------------------
@@ -233,9 +233,9 @@ elseif strcmp(filetype, 'continuous')
     
     current_sample = 0;
     
-    for record = 1:length(info.ts)-1
+    for record = 1:length(info.ts)
         
-        ts_interp = linspace(info.ts(record),info.ts(record+1),info.nsamples(record)+1);
+        ts_interp = info.ts(record):info.ts(record)+info.nsamples(record);
         
         timestamps(current_sample+1:current_sample+info.nsamples(record)) = ts_interp(1:end-1);
         
