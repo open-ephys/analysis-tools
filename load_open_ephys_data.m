@@ -113,6 +113,10 @@ if strcmp(filetype, 'events')
         info.eventId(index) = fread(fid, 1, 'uint8');
         data(index) = fread(fid, 1, 'uint8'); % save event channel as 'data' (maybe not the best thing to do)
         
+        if version >= 0.2
+            info.recordingNumber(index) = fread(fid, 1, 'uint16');
+        end
+        
     end
     
     % crop the arrays to the correct size
@@ -148,6 +152,10 @@ elseif strcmp(filetype, 'continuous')
     info.ts = zeros(1, MAX_NUMBER_OF_RECORDS);
     info.nsamples = zeros(1, MAX_NUMBER_OF_RECORDS);
     
+    if version >= 0.2
+        info.recNum = zeros(1, MAX_NUMBER_OF_RECORDS);
+    end
+    
     current_sample = 0;
     
     while ftell(fid) + RECORD_SIZE < filesize % at least one record remains
@@ -159,6 +167,11 @@ elseif strcmp(filetype, 'continuous')
         if (version >= 0.1)
             timestamp = fread(fid, 1, 'int64', 0, 'l');
             nsamples = fread(fid, 1, 'uint16',0,'l');
+            
+            if version >= 0.2
+                recNum = fread(fid, 1, 'uint16');
+            end
+            
         else
             timestamp = fread(fid, 1, 'uint64', 0, 'l');
             nsamples = fread(fid, 1, 'int16',0,'l');
@@ -219,6 +232,7 @@ elseif strcmp(filetype, 'continuous')
             
             info.ts(index) = timestamp;
             info.nsamples(index) = nsamples;
+            info.recNum(index) = recNum;
             
         end
         
@@ -228,6 +242,10 @@ elseif strcmp(filetype, 'continuous')
     data(current_sample+1:end) = [ ];
     info.ts(index+1:end) = [ ];
     info.nsamples(index+1:end) = [ ];
+    
+    if version >= 0.2
+        info.recNum(index+1:end) = [ ];
+    end
     
     timestamps = nan(size(data));
     
@@ -274,6 +292,9 @@ elseif strcmp(filetype, 'spikes')
     timestamps = zeros(1, MAX_NUMBER_OF_SPIKES);
     info.source = zeros(1, MAX_NUMBER_OF_SPIKES);
     
+    if (version >= 0.2)
+        info.recNum = zeros(1, MAX_NUMBER_OF_SPIKES);
+    end
     
     
     current_spike = 0;
@@ -330,6 +351,10 @@ elseif strcmp(filetype, 'spikes')
         
         channel_thresholds = fread(fid, num_channels, 'uint16', 0, 'l');
         
+        if version >= 0.2
+            info.recNum(current_spike) = fread(fid, 1, 'uint16', 0, 'l');
+        end
+        
         idx = idx + num_channels*2*2;
         
         %data(current_spike, :, :) = double(wv-32768)./gain;
@@ -343,6 +368,10 @@ elseif strcmp(filetype, 'spikes')
     data(current_spike+1:end,:,:) = [ ];
     timestamps(current_spike+1:end) = [ ];
     info.source(current_spike+1:end) = [ ];
+    
+    if version >= 0.2
+        info.recNum(current_spike+1:end) = [ ];
+    end
     
     
     
