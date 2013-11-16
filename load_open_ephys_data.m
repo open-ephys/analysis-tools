@@ -232,7 +232,10 @@ elseif strcmp(filetype, 'continuous')
             
             info.ts(index) = timestamp;
             info.nsamples(index) = nsamples;
-            info.recNum(index) = recNum;
+            
+            if version >= 0.2
+                info.recNum(index) = recNum;
+            end
             
         end
         
