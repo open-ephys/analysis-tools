@@ -292,11 +292,13 @@ elseif strcmp(filetype, 'spikes')
     % pre-allocate space for spike data
     
     data = zeros(MAX_NUMBER_OF_SPIKES, num_samples, num_channels);
-    timestamps = zeros(1, MAX_NUMBER_OF_SPIKES);
-    info.source = zeros(1, MAX_NUMBER_OF_SPIKES);
+    timestamps = zeros(MAX_NUMBER_OF_SPIKES, 1);
+    info.source = zeros(MAX_NUMBER_OF_SPIKES, 1);
+    info.gain = zeros(MAX_NUMBER_OF_SPIKES, num_channels);
+    info.thresh = zeros(MAX_NUMBER_OF_SPIKES, num_channels);
     
     if (version >= 0.2)
-        info.recNum = zeros(1, MAX_NUMBER_OF_SPIKES);
+        info.recNum = zeros(MAX_NUMBER_OF_SPIKES, 1);
     end
     
     
@@ -349,10 +351,12 @@ elseif strcmp(filetype, 'spikes')
         wv = reshape(waveforms, num_samples, num_channels);
         
         channel_gains = fread(fid, num_channels, 'uint16', 0, 'l');
+        info.gain(current_spike,:) = channel_gains;
         
         % gain = double(repmat(channel_gains', num_samples, 1))/1000;
         
         channel_thresholds = fread(fid, num_channels, 'uint16', 0, 'l');
+        info.thresh(current_spike,:) = channel_thresholds;
         
         if version >= 0.2
             info.recNum(current_spike) = fread(fid, 1, 'uint16', 0, 'l');
@@ -364,13 +368,15 @@ elseif strcmp(filetype, 'spikes')
         data(current_spike, :, :) = wv;
     end
     
-    for ch=1:num_channels % scale the waveforms
-        data(:, :, ch)=double(data(:, :, ch)-32768)./(channel_gains(ch)/1000);
+    for ch = 1:num_channels % scale the waveforms
+        data(:, :, ch) = double(data(:, :, ch)-32768)./(channel_gains(ch)/1000);
     end;
     
     data(current_spike+1:end,:,:) = [ ];
     timestamps(current_spike+1:end) = [ ];
     info.source(current_spike+1:end) = [ ];
+    info.gain(current_spike+1:end,:) = [ ];
+    info.thresh(current_spike+1:end,:) = [ ];
     
     if version >= 0.2
         info.recNum(current_spike+1:end) = [ ];
