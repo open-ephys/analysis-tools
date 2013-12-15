@@ -60,6 +60,7 @@ NUM_HEADER_BYTES = 1024;
 SAMPLES_PER_RECORD = 1024;
 RECORD_SIZE = 8 + 16 + SAMPLES_PER_RECORD*2 + 10; % size of each continuous record in bytes
 RECORD_MARKER = [0 1 2 3 4 5 6 7 8 255]';
+RECORD_MARKER_V0 = [0 0 0 0 0 0 0 0 0 255]';
 
 % constants for pre-allocating matrices:
 MAX_NUMBER_OF_SPIKES = 1e6;
@@ -168,6 +169,7 @@ elseif strcmp(filetype, 'continuous')
             timestamp = fread(fid, 1, 'int64', 0, 'l');
             nsamples = fread(fid, 1, 'uint16',0,'l');
             
+            
             if version >= 0.2
                 recNum = fread(fid, 1, 'uint16');
             end
@@ -178,7 +180,7 @@ elseif strcmp(filetype, 'continuous')
         end
        
         
-        if nsamples ~= SAMPLES_PER_RECORD
+        if nsamples ~= SAMPLES_PER_RECORD && version >= 0.1
             
             disp(['  Found corrupted record...searching for record marker.']);
             
@@ -254,17 +256,29 @@ elseif strcmp(filetype, 'continuous')
     
     current_sample = 0;
     
-    for record = 1:length(info.ts)
+    if version >= 0.1
         
-        ts_interp = info.ts(record):info.ts(record)+info.nsamples(record);
+        for record = 1:length(info.ts)
+
+            ts_interp = info.ts(record):info.ts(record)+info.nsamples(record);
+
+            timestamps(current_sample+1:current_sample+info.nsamples(record)) = ts_interp(1:end-1);
+
+            current_sample = current_sample + info.nsamples(record);
+        end
+    else % v0.0; NOTE: the timestamps for the last record will not be interpolated
         
-        timestamps(current_sample+1:current_sample+info.nsamples(record)) = ts_interp(1:end-1);
+         for record = 1:length(info.ts)-1
+
+            ts_interp = linspace(info.ts(record), info.ts(record+1), info.nsamples(record)+1);
+
+            timestamps(current_sample+1:current_sample+info.nsamples(record)) = ts_interp(1:end-1);
+
+            current_sample = current_sample + info.nsamples(record);
+         end
         
-        current_sample = current_sample + info.nsamples(record);
     end
-    
-    % NOTE: the timestamps for the last record will not be interpolated
-    
+
     
     %-----------------------------------------------------------------------
     %--------------------------- SPIKE DATA --------------------------------
@@ -392,7 +406,9 @@ end
 
 fclose(fid); % close the file
 
-timestamps = timestamps./info.header.sampleRate; % convert to seconds
+if (isfield(info.header,'sampleRate'))
+    timestamps = timestamps./info.header.sampleRate; % convert to seconds
+end
 
 end
 
