@@ -317,6 +317,7 @@ elseif strcmp(filetype, 'spikes')
     
     
     current_spike = 0;
+    last_percent=0;
     
     while ftell(fid) + 512 < filesize % at least one record remains
         
@@ -327,6 +328,11 @@ elseif strcmp(filetype, 'spikes')
             data(current_spike+SPIKE_PREALLOC_INTERVAL+1, 1, num_channels) = 0;
         end;
         
+        current_percent= round(100* ((ftell(fid) + 512) / filesize));
+        if current_percent >= last_percent+10
+            last_percent=current_percent;
+            fprintf(' %d%%',current_percent);
+        end;
         
         idx = 0;
         
@@ -381,7 +387,7 @@ elseif strcmp(filetype, 'spikes')
         %data(current_spike, :, :) = double(wv-32768)./gain;
         data(current_spike, :, :) = wv;
     end
-    
+       fprintf('\n')
     for ch = 1:num_channels % scale the waveforms
         data(:, :, ch) = double(data(:, :, ch)-32768)./(channel_gains(ch)/1000);
     end;
