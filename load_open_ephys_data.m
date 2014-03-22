@@ -12,8 +12,9 @@ function [data, timestamps, info] = load_open_ephys_data(filename)
 %
 %   Outputs:
 %
-%     data: either an array continuous samples, a matrix of spike waveforms,
-%           or an array of event channels
+%     data: either an array continuous samples (in microvolts),
+%           a matrix of spike waveforms (in microvolts),
+%           or an array of event channels (integers)
 %
 %     timestamps: in seconds
 %
@@ -252,6 +253,9 @@ elseif strcmp(filetype, 'continuous')
         info.recNum(index+1:end) = [ ];
     end
     
+    % convert to microvolts
+    data = data.*info.header.bitVolts;
+    
     timestamps = nan(size(data));
     
     current_sample = 0;
@@ -377,7 +381,7 @@ elseif strcmp(filetype, 'spikes')
         end
         
         idx = idx + num_channels*2*2;
-        
+
         %data(current_spike, :, :) = double(wv-32768)./gain;
         data(current_spike, :, :) = wv;
     end
@@ -407,7 +411,9 @@ end
 fclose(fid); % close the file
 
 if (isfield(info.header,'sampleRate'))
-    timestamps = timestamps./info.header.sampleRate; % convert to seconds
+    if ~ischar(info.header.sampleRate)
+      timestamps = timestamps./info.header.sampleRate; % convert to seconds
+    end
 end
 
 end
