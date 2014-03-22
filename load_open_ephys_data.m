@@ -46,8 +46,8 @@ function [data, timestamps, info] = load_open_ephys_data(filename)
 %     This program is distributed in the hope that it will be useful,
 %     but WITHOUT ANY WARRANTY; without even the implied warranty of
 %     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-%     GNU General Public License for more details. 
-%     
+%     GNU General Public License for more details.
+%
 %     <http://www.gnu.org/licenses/>.
 %
 
@@ -179,7 +179,7 @@ elseif strcmp(filetype, 'continuous')
             timestamp = fread(fid, 1, 'uint64', 0, 'l');
             nsamples = fread(fid, 1, 'int16',0,'l');
         end
-       
+        
         
         if nsamples ~= SAMPLES_PER_RECORD && version >= 0.1
             
@@ -321,6 +321,7 @@ elseif strcmp(filetype, 'spikes')
     
     
     current_spike = 0;
+    last_percent=0;
     
     while ftell(fid) + 512 < filesize % at least one record remains
         
@@ -329,8 +330,15 @@ elseif strcmp(filetype, 'spikes')
         %pre-allocate in blocks
         if mod(current_spike,SPIKE_PREALLOC_INTERVAL) == 2 % dont pre-alloc on the 1st because we dont have the N samples yet so we'll take that from the spike record
             data(current_spike+SPIKE_PREALLOC_INTERVAL+1, 1, num_channels) = 0;
+            info.thresh(current_spike+SPIKE_PREALLOC_INTERVAL+1,1) =0;
+            info.gain(current_spike+SPIKE_PREALLOC_INTERVAL+1,1) = 0;
         end;
         
+        current_percent= round(100* ((ftell(fid) + 512) / filesize));
+        if current_percent >= last_percent+10
+            last_percent=current_percent;
+            fprintf(' %d%%',current_percent);
+        end;
         
         idx = 0;
         
@@ -339,9 +347,9 @@ elseif strcmp(filetype, 'spikes')
         idx = idx + 1;
         
         if (version >= 0.1)
-           timestamps(current_spike) = fread(fid, 1, 'int64', 0, 'l');
+            timestamps(current_spike) = fread(fid, 1, 'int64', 0, 'l');
         else
-           timestamps(current_spike) = fread(fid, 1, 'uint64', 0, 'l');
+            timestamps(current_spike) = fread(fid, 1, 'uint64', 0, 'l');
         end
         
         
@@ -385,7 +393,7 @@ elseif strcmp(filetype, 'spikes')
         %data(current_spike, :, :) = double(wv-32768)./gain;
         data(current_spike, :, :) = wv;
     end
-    
+    fprintf('\n')
     for ch = 1:num_channels % scale the waveforms
         data(:, :, ch) = double(data(:, :, ch)-32768)./(channel_gains(ch)/1000);
     end;
