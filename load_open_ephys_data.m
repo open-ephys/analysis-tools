@@ -65,8 +65,8 @@ RECORD_MARKER_V0 = [0 0 0 0 0 0 0 0 0 255]';
 
 % constants for pre-allocating matrices:
 MAX_NUMBER_OF_SPIKES = 1e6;
-MAX_NUMBER_OF_RECORDS = 1e4;
-MAX_NUMBER_OF_CONTINUOUS_SAMPLES = 10e6;
+MAX_NUMBER_OF_RECORDS = 1e6;
+MAX_NUMBER_OF_CONTINUOUS_SAMPLES = 1e8;
 MAX_NUMBER_OF_EVENTS = 1e6;
 SPIKE_PREALLOC_INTERVAL = 1e6;
 
@@ -122,12 +122,12 @@ if strcmp(filetype, 'events')
     end
     
     % crop the arrays to the correct size
-    data(index+1:end) = [ ];
-    timestamps(index+1:end) = [ ];
-    info.sampleNum(index+1:end) = [ ];
-    info.nodeId(index+1:end) = [ ];
-    info.eventType(index+1:end) = [ ];
-    info.eventId(index+1:end) = [ ];
+    data = data(1:index);
+    timestamps = timestamps(1:index);
+    info.sampleNum = info.sampleNum(1:index);
+    info.nodeId = info.nodeId(1:index);
+    info.eventType = info.eventType(1:index);
+    info.eventId = info.eventId(1:index);
     
     %-----------------------------------------------------------------------
     %---------------------- CONTINUOUS DATA --------------------------------
@@ -245,12 +245,12 @@ elseif strcmp(filetype, 'continuous')
     end
     
     % crop data to the correct size
-    data(current_sample+1:end) = [ ];
-    info.ts(index+1:end) = [ ];
-    info.nsamples(index+1:end) = [ ];
+    data = data(1:current_sample);
+    info.ts = info.ts(1:current_sample);
+    info.nsamples = info.nsamples(1:current_sample);
     
     if version >= 0.2
-        info.recNum(index+1:end) = [ ];
+        info.recNum = info.recNum(1:current_sample);
     end
     
     % convert to microvolts
@@ -398,14 +398,14 @@ elseif strcmp(filetype, 'spikes')
         data(:, :, ch) = double(data(:, :, ch)-32768)./(channel_gains(ch)/1000);
     end;
     
-    data(current_spike+1:end,:,:) = [ ];
-    timestamps(current_spike+1:end) = [ ];
-    info.source(current_spike+1:end) = [ ];
-    info.gain(current_spike+1:end,:) = [ ];
-    info.thresh(current_spike+1:end,:) = [ ];
+    data = data(1:current_spike);
+    timestamps = timestamps(1:current_spike);
+    info.source = info.source(1:current_spike);
+    info.gain = info.gain(1:current_spike);
+    info.thresh = info.thresh(1:current_spike);
     
     if version >= 0.2
-        info.recNum(current_spike+1:end) = [ ];
+        info.recNum(1:current_spike); 
     end
     
     
