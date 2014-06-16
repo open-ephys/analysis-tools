@@ -34,7 +34,7 @@ function [data, timestamps, info] = load_open_ephys_data(filename)
 %
 %     ------------------------------------------------------------------
 %
-%     Copyright (C) 2013 Open Ephys
+%     Copyright (C) 2014 Open Ephys
 %
 %     ------------------------------------------------------------------
 %
