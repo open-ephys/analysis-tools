@@ -390,7 +390,6 @@ elseif strcmp(filetype, 'spikes')
         
         idx = idx + num_channels*2*2;
 
-        %data(current_spike, :, :) = double(wv-32768)./gain;
         data(current_spike, :, :) = wv;
     end
     fprintf('\n')
@@ -398,7 +397,7 @@ elseif strcmp(filetype, 'spikes')
         data(:, :, ch) = double(data(:, :, ch)-32768)./(channel_gains(ch)/1000);
     end;
     
-    data = data(1:current_spike);
+    data = data(1:current_spike,:,:);
     timestamps = timestamps(1:current_spike);
     info.source = info.source(1:current_spike);
     info.gain = info.gain(1:current_spike);
