@@ -246,11 +246,11 @@ elseif strcmp(filetype, 'continuous')
     
     % crop data to the correct size
     data = data(1:current_sample);
-    info.ts = info.ts(1:current_sample);
-    info.nsamples = info.nsamples(1:current_sample);
+    info.ts = info.ts(1:index);
+    info.nsamples = info.nsamples(1:index);
     
     if version >= 0.2
-        info.recNum = info.recNum(1:current_sample);
+        info.recNum = info.recNum(1:index);
     end
     
     % convert to microvolts
