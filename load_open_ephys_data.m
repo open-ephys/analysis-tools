@@ -346,11 +346,19 @@ elseif strcmp(filetype, 'spikes')
         
         idx = idx + 1;
         
+        if (version >= 0.3)
+            event_size = fread(fid, 1, 'uint32', 0, 'l');
+            idx = idx + 4;
+            ts = fread(fid, 1, 'int64', 0, 'l'); 
+            idx = idx + 8;
+        end
+        
         if (version >= 0.1)
             timestamps(current_spike) = fread(fid, 1, 'int64', 0, 'l');
         else
             timestamps(current_spike) = fread(fid, 1, 'uint64', 0, 'l');
         end
+       
         
         
         idx = idx + 8;
@@ -358,6 +366,8 @@ elseif strcmp(filetype, 'spikes')
         info.source(current_spike) = fread(fid, 1, 'uint16', 0, 'l');
         
         idx = idx + 2;
+        
+        
         
         num_channels = fread(fid, 1, 'uint16', 0, 'l');
         num_samples = fread(fid, 1, 'uint16', 0, 'l');
