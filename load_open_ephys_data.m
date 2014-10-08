@@ -299,7 +299,7 @@ elseif strcmp(filetype, 'spikes')
     info.header = header;
     
     if (isfield(info.header, 'version'))
-        version = info.header.version;
+        version = info.header.version
     else
         version = 0.0;
     end
@@ -358,16 +358,12 @@ elseif strcmp(filetype, 'spikes')
         else
             timestamps(current_spike) = fread(fid, 1, 'uint64', 0, 'l');
         end
-       
-        
-        
+
         idx = idx + 8;
         
         info.source(current_spike) = fread(fid, 1, 'uint16', 0, 'l');
         
         idx = idx + 2;
-        
-        
         
         num_channels = fread(fid, 1, 'uint16', 0, 'l');
         num_samples = fread(fid, 1, 'uint16', 0, 'l');
@@ -416,8 +412,6 @@ elseif strcmp(filetype, 'spikes')
     if version >= 0.2
         info.recNum(1:current_spike); 
     end
-    
-    
     
 else
     
