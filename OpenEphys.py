@@ -4,7 +4,11 @@ Created on Sun Aug  3 15:18:38 2014
 
 @author: Dan Denman and Josh Siegle
 
-Loads .continuous files saved from the Open Ephys GUI
+Loads .continuous, .events, and .spikes files saved from the Open Ephys GUI
+
+Usage:
+    import OpenEphys
+    data = OpenEphys.load(pathToFile) # returns a dict with data, timestamps, etc.
 
 """
 
@@ -13,6 +17,18 @@ import numpy as np
 import scipy.signal
 import scipy.io
 import time
+
+def load(filepath):
+    
+    # redirects to code for individual file types
+    if 'continuous' in filepath:
+        loadContinuous(filepath)
+    elif 'spikes' in filepath:
+        loadSpikes(filepath)
+    elif 'events' in filepath:
+        loadEvents(filepath)
+    else:
+        print "Not a recognized file type. Please input a .continuous, .spikes, or .events file"
 
 def loadFolder(folderpath):
 
@@ -35,8 +51,9 @@ def loadFolder(folderpath):
     print ''.join(('Total Load Time: ', str((time.time() - t0)),' sec'))        
             
     return data
-    
-def loadChannel(filepath):
+
+
+def loadContinuous(filepath):
 
     sampleNumbers = []; samples = []; times = []; Ns = []; recordingNumbers = [];
     ch = {};
@@ -84,6 +101,14 @@ def loadChannel(filepath):
     ch['recordingNumber'] = recordingNumbers
     f.close()
     return ch
+    
+def loadSpikes(filepath):
+    
+    print 'loading spikes...'
+    
+def loadEvents(filepath):
+    
+    print 'loading events...'
     
 def readHeader(f):
     header = {}
