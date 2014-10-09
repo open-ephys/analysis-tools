@@ -133,6 +133,8 @@ def loadContinuous(filepath):
     
 def loadSpikes(filepath):
     
+    # doesn't quite work...spikes are transposed in a weird way    
+    
     data = { }
     
     print 'loading spikes...'
@@ -179,6 +181,8 @@ def loadSpikes(filepath):
         thresh[currentSpike,:] = np.fromfile(f, np.dtype('<u2'), numChannels)
         
         recNum[currentSpike] = np.fromfile(f, np.dtype('<u2'), 1)
+
+        #print wv.shape        
         
         for ch in range(numChannels):
             spikes[currentSpike,:,ch] = (np.float64(wv[:,ch])-32768)/(gain[currentSpike,ch]/1000)
@@ -199,9 +203,48 @@ def loadSpikes(filepath):
     
 def loadEvents(filepath):
 
-    data = { }    
+    data = { }
     
     print 'loading events...'
+    
+    f = open(filepath,'rb')
+    header = readHeader(f)
+    
+    if float(header[' version']) < 0.4:
+        raise Exception('Loader is only compatible with .events files with version 0.4 or higher')
+     
+    data['header'] = header 
+    
+    index = -1
+
+    channel = np.zeros(MAX_NUMBER_OF_EVENTS)
+    timestamps = np.zeros(MAX_NUMBER_OF_EVENTS)
+    sampleNum = np.zeros(MAX_NUMBER_OF_EVENTS)
+    nodeId = np.zeros(MAX_NUMBER_OF_EVENTS)
+    eventType = np.zeros(MAX_NUMBER_OF_EVENTS)
+    eventId = np.zeros(MAX_NUMBER_OF_EVENTS)
+    recordingNumber = np.zeros(MAX_NUMBER_OF_EVENTS)
+
+    while f.tell() < os.fstat(f.fileno()).st_size:
+        
+        index += 1
+        
+        timestamps[index] = np.fromfile(f, np.dtype('<i8'), 1)
+        sampleNum[index] = np.fromfile(f, np.dtype('<i2'), 1)
+        eventType[index] = np.fromfile(f, np.dtype('<u1'), 1)
+        nodeId[index] = np.fromfile(f, np.dtype('<ui'), 1)
+        eventId[index] = np.fromfile(f, np.dtype('<u1'), 1)
+        channel[index] = np.fromfile(f, np.dtype('<u1'), 1)
+        recordingNumber[index] = np.fromfile(f, np.dtype('<u2'), 1)
+        
+    data['channel'] = channel[:index]
+    data['timestamps'] = timestamps[:index]
+    data['eventType'] = eventType[:index]
+    data['nodeId'] = nodeId[:index]
+    data['eventId'] = eventId[:index]
+    data['recordingNumber'] = recordingNumber[:index]
+    data['sampleNum'] = sampleNum[:index]
+    
     return data
     
 def readHeader(f):
