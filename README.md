@@ -11,7 +11,7 @@ For Matlab:
 - use 'load_open_ephys_data.m' for .continuous, .spikes, and .events files
 
 For Python:
-- use the 'OpenEphys.py' module for .continuous files (.spikes and .events files coming soon)
+- use the 'OpenEphys.py' module for .continuous files, .spikes, and .events files
 - use the 'Kwik.py' module for .kwd files
 
 For MClust:
