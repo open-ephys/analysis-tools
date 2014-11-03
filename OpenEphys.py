@@ -130,7 +130,7 @@ def loadContinuous(filepath):
         
     ch['header'] = header 
     ch['timestamps'] = timestamps[0:recordNumber]
-    ch['data'] = samples[0:indices[recordNumber+1]]  # OR use downsample(samples,1), to save space
+    ch['data'] = samples[0:indices[recordNumber]]  # OR use downsample(samples,1), to save space
     ch['recordingNumber'] = recordingNumbers[0:recordNumber]
     f.close()
     return ch
