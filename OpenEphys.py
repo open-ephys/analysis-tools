@@ -72,7 +72,7 @@ def loadContinuous(filepath):
     print "Loading continuous data..."
 
     ch = { }
-    recordNumber = np.intp(0)
+    recordNumber = np.intp(-1)
     
 #    f = open(filepath,'rb')
 #    header = readHeader(f)
