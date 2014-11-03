@@ -19,8 +19,8 @@ import scipy.io
 import time
 
 # constants
-NUM_HEADER_BYTES = 1024
-SAMPLES_PER_RECORD = 1024
+NUM_HEADER_BYTES = 1024L
+SAMPLES_PER_RECORD = 1024L
 RECORD_SIZE = 8 + 16 + SAMPLES_PER_RECORD*2 + 10 # size of each continuous record in bytes
 RECORD_MARKER = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 255])
 
@@ -57,7 +57,7 @@ def loadFolder(folderpath):
     
     for i, f in enumerate(filelist):
         if '.continuous' in f:
-            print ''.join(('Loading Channel ',f.replace('.continuous',''),'...'))
+            #print ''.join(('Loading Channel ',f.replace('.continuous',''),'...'))
             data[f.replace('.continuous','')] = loadContinuous(os.path.join(folderpath, f))
             numFiles += 1
 
@@ -72,8 +72,7 @@ def loadContinuous(filepath):
     print "Loading continuous data..."
 
     ch = { }
-    index = 0
-    recordNumber = -1
+    recordNumber = np.intp(0)
     
 #    f = open(filepath,'rb')
 #    header = readHeader(f)
@@ -92,13 +91,18 @@ def loadContinuous(filepath):
     samples = np.zeros(MAX_NUMBER_OF_CONTINUOUS_SAMPLES)
     timestamps = np.zeros(MAX_NUMBER_OF_RECORDS)
     recordingNumbers = np.zeros(MAX_NUMBER_OF_RECORDS)
+    indices = np.arange(0,MAX_NUMBER_OF_RECORDS*SAMPLES_PER_RECORD, SAMPLES_PER_RECORD, np.dtype(np.int64))
     
     #read in the data
     f = open(filepath,'rb')
     
     header = readHeader(f)
     
-    while f.tell() < os.fstat(f.fileno()).st_size:
+    fileLength = os.fstat(f.fileno()).st_size
+    #print fileLength
+    #print f.tell()
+    
+    while f.tell() < fileLength:
         
         recordNumber += 1        
         
@@ -113,20 +117,20 @@ def loadContinuous(filepath):
         recordingNumbers[recordNumber] = (np.fromfile(f,np.dtype('>u2'),1)) # big-endian 16-bit unsigned integer
         data = np.fromfile(f,np.dtype('>i2'),N) * float(header['bitVolts']) # big-endian 16-bit signed integer, multiplied by bitVolts   
         
-        #print data.shape
-        #print samples.shape
         try:
-            samples[index:index+N] = data
+            samples[indices[recordNumber]:indices[recordNumber+1]] = data            
         except ValueError:
-            break
+            print type(index)
+            raise
         
-        index += N
-            
         marker = f.read(10) # dump
+        
+    #print recordNumber
+    #print index
         
     ch['header'] = header 
     ch['timestamps'] = timestamps[0:recordNumber]
-    ch['data'] = samples[0:index]  # OR use downsample(samples,1), to save space
+    ch['data'] = samples[0:indices[recordNumber+1]]  # OR use downsample(samples,1), to save space
     ch['recordingNumber'] = recordingNumbers[0:recordNumber]
     f.close()
     return ch
@@ -189,8 +193,6 @@ def loadSpikes(filepath):
         
         currentSpike += 1
         
-    print spikes.shape
-    
     data['spikes'] = spikes[:currentSpike,:,:]
     data['timestamps'] = timestamps[:currentSpike]
     data['source'] = source[:currentSpike]
