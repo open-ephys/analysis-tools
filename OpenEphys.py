@@ -17,6 +17,7 @@ import numpy as np
 import scipy.signal
 import scipy.io
 import time
+import struct
 
 # constants
 NUM_HEADER_BYTES = 1024L
@@ -44,20 +45,23 @@ def load(filepath):
         
     return data
 
-def loadFolder(folderpath):
+def loadFolder(folderpath,**kwargs):
 
     # load all continuous files in a folder  
     
     data = { }    
     
-    filelist = os.listdir(folderpath)   
+    # load all continuous files in a folder  
+    if 'channels' in kwargs.keys():
+        filelist = ['100_CH'+x+'.continuous' for x in map(str,kwargs['channels'])]
+    else:
+        filelist = os.listdir(folderpath)   
 
     t0 = time.time()
     numFiles = 0
     
     for i, f in enumerate(filelist):
         if '.continuous' in f:
-            #print ''.join(('Loading Channel ',f.replace('.continuous',''),'...'))
             data[f.replace('.continuous','')] = loadContinuous(os.path.join(folderpath, f))
             numFiles += 1
 
@@ -261,5 +265,111 @@ def downsample(trace,down):
     downsampled = scipy.signal.resample(trace,np.shape(trace)[0]/down)
     return downsampled
     
+def pack(folderpath,source='100',**kwargs):  
+#convert single channel open ephys channels to a .dat file for compatibility with the KlustaSuite, Neuroscope and Klusters
+#should not be necessary for versions of open ephys which write data into HDF5 format.  
+#loads .continuous files in the specified folder and saves a .DAT in that folder
+#optional arguments:
+#   source: string name of the source that openephys uses as the prefix. is usually 100, if the headstage is the first source added, but can specify something different
+#
+#   data: pre-loaded data to be packed into a .DAT 
+#   dref: int specifying a channel # to use as a digital reference. is subtracted from all channels.
+#   order: the order in which the .continuos files are packed into the .DAT. should be a list of .continious channel numbers. length must equal total channels.
+#   suffix: appended to .DAT filename, which is openephys.DAT if no suffix provided.
 
+    #load the openephys data into memory
+    if 'data' not in kwargs.keys():
+        if 'channels' not in kwargs.keys():
+            data = loadFolder(folderpath)
+        else:   
+            data = loadFolder(folderpath,channels=kwargs['channels'])
+    else:
+        data = kwargs['data']
+    #if specified, do the digital referencing
+    if 'dref' in kwargs.keys():
+        ref =load(os.path.join(folderpath,''.join((source,'_CH',str(kwargs['dref']),'.continuous'))))
+        for i,channel in enumerate(data.keys()):
+            data[channel]['data'] = data[channel]['data'] - ref['data']   
+    #specify the order the channels are written in
+    if 'order' in kwargs.keys():
+        order = kwargs['order']
+    else:
+        order = data.keys()                         
+    #add a suffix, if one was specified        
+    if 'suffix' in kwargs.keys():
+        suffix=kwargs['suffix']
+    else:
+        suffix=''
+
+    #make a file to write the data back out into .dat format
+    outpath = os.path.join(folderpath,''.join(('openephys',suffix,'.dat')))
+    out = open(outpath,'wb')
+    
+    #go through the data and write it out in the .dat format
+    #.dat format specified here: http://neuroscope.sourceforge.net/UserManual/data-files.html
+    channelOrder = []
+    print ''.join(('...saving .dat to ',outpath,'...'))
+    bar = ProgressBar(len(data[data.keys()[0]]['data']))#progressbar.ProgressBar(maxval=1, widgets=[progressbar.Bar('=', '[', ']'), ' ', progressbar.Percentage()])
+    for i in range(len(data[data.keys()[0]]['data'])):
+        for j in range(len(order)):
+            if source in data.keys()[0]:
+                ch = data[''.join((source,'_CH',str(order[j]).replace(source+'_CH','')))]['data']
+            else:        
+                ch = data[''.join(('CH',str(order[j]).replace('CH','')))]['data']
+            out.write(struct.pack('h',ch[i]))#signed 16-bit integer
+            #figure out which order this thing packed the channels in. only do this once.
+            if i == 0:
+                channelOrder.append(order[j])
+        #update how mucb we have list
+        if i%(len(data[data.keys()[0]]['data'])/100)==0:
+            bar.animate(i)
+            #bar.update(float(i+1)/float(len(data[data.keys()[0]])))
+    #bar.finish()
+    out.close()      
+    print ''.join(('order: ',str(channelOrder)))
+    print ''.join(('.dat saved to ',outpath))
+    
+#**********************************************************
+# progress bar class used to show progress of pack()
+    #stolen from some post on stack overflow
+import sys
+try:
+    from IPython.display import clear_output
+    have_ipython = True
+except ImportError:
+    have_ipython = False
+class ProgressBar:
+    def __init__(self, iterations):
+        self.iterations = iterations
+        self.prog_bar = '[]'
+        self.fill_char = '*'
+        self.width = 40
+        self.__update_amount(0)
+        if have_ipython:
+            self.animate = self.animate_ipython
+        else:
+            self.animate = self.animate_noipython
+
+    def animate_ipython(self, iter):
+        print '\r', self,
+        sys.stdout.flush()
+        self.update_iteration(iter + 1)
+
+    def update_iteration(self, elapsed_iter):
+        self.__update_amount((elapsed_iter / float(self.iterations)) * 100.0)
+        self.prog_bar += '  %d of %s complete' % (elapsed_iter, self.iterations)
+
+    def __update_amount(self, new_amount):
+        percent_done = int(round((new_amount / 100.0) * 100.0))
+        all_full = self.width - 2
+        num_hashes = int(round((percent_done / 100.0) * all_full))
+        self.prog_bar = '[' + self.fill_char * num_hashes + ' ' * (all_full - num_hashes) + ']'
+        pct_place = (len(self.prog_bar) // 2) - len(str(percent_done))
+        pct_string = '%d%%' % percent_done
+        self.prog_bar = self.prog_bar[0:pct_place] + \
+            (pct_string + self.prog_bar[pct_place + len(pct_string):])
+
+    def __str__(self):
+        return str(self.prog_bar)
+#*************************************************************
     
