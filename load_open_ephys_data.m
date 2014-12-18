@@ -98,7 +98,13 @@ if strcmp(filetype, 'events')
     info.eventType = zeros(MAX_NUMBER_OF_EVENTS, 1);
     info.eventId = zeros(MAX_NUMBER_OF_EVENTS, 1);
     
-    while ftell(fid) + 22 < filesize % at least one record remains
+    if (version >= 0.2)
+        recordOffset = 15;
+    else
+        recordOffset = 13;
+    end
+    
+    while ftell(fid) + recordOffset < filesize % at least one record remains
         
         index = index + 1;
         
