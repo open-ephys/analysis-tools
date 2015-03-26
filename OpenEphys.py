@@ -313,7 +313,7 @@ def pack(folderpath,source='100',**kwargs):
     for i in range(len(data[data.keys()[0]]['data'])):
         for j in range(len(order)):
             if source in data.keys()[0]:
-                ch = data[''.join((source,'_CH',str(order[j]).replace(source+'_CH','')))]['data']
+                ch = data[order[j]]['data']
             else:        
                 ch = data[''.join(('CH',str(order[j]).replace('CH','')))]['data']
             out.write(struct.pack('h',ch[i]))#signed 16-bit integer
