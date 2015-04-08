@@ -39,7 +39,7 @@ input_directory = varargin{1};
 if (nargin == 1)
     output_directory = input_directory;
 else
-    output_directory = varagin{2};
+    output_directory = varargin{2};
 end
 
 info = get_session_info(input_directory);
