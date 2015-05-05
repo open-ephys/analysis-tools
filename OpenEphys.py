@@ -238,7 +238,7 @@ def loadEvents(filepath):
         timestamps[index] = np.fromfile(f, np.dtype('<i8'), 1)
         sampleNum[index] = np.fromfile(f, np.dtype('<i2'), 1)
         eventType[index] = np.fromfile(f, np.dtype('<u1'), 1)
-        nodeId[index] = np.fromfile(f, np.dtype('<ui'), 1)
+        nodeId[index] = np.fromfile(f, np.dtype('<u1'), 1)
         eventId[index] = np.fromfile(f, np.dtype('<u1'), 1)
         channel[index] = np.fromfile(f, np.dtype('<u1'), 1)
         recordingNumber[index] = np.fromfile(f, np.dtype('<u2'), 1)
