@@ -24,6 +24,27 @@ def load(filename, dataset=0):
                          / data['info']['sample_rate'])
                          
     return data
+    
+def write(filename, dataset=0, bit_depth=1.0, sample_rate=25000.0):
+    
+    f = h5py.File(filename, 'w-')
+    f.attrs['kwik_version'] = 2
+    
+    grp = f.create_group("/recordings/0")
+    
+    dset = grp.create_dataset("data", dataset.shape, dtype='i16')
+    dset[:,:] = dataset
+    
+    grp.attrs['start_time'] = 0.0
+    grp.attrs['start_sample'] = 0
+    grp.attrs['sample_rate'] = sample_rate
+    grp.attrs['bit_depth'] = bit_depth
+    
+    f.close()
+    
+    
+     
+    
                         
                          
                         

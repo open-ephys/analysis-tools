@@ -69,7 +69,7 @@ def loadFolder(folderpath):
 
 def loadContinuous(filepath):
 
-    print "Loading continuous data..."
+    print "Loading continuous data from " + filepath
 
     ch = { }
     recordNumber = np.intp(-1)
