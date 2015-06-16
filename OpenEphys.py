@@ -177,8 +177,6 @@ def loadContinuous(filepath, dtype = float):
     
 def loadSpikes(filepath):
     
-    # doesn't quite work...spikes are transposed in a weird way    
-    
     data = { }
     
     print 'loading spikes...'
@@ -219,17 +217,15 @@ def loadSpikes(filepath):
         sampleFreq = np.fromfile(f, np.dtype('<u2'),1)
         
         waveforms = np.fromfile(f, np.dtype('<u2'), numChannels*numSamples)
-        wv = np.reshape(waveforms, (numSamples, numChannels))
-        
+        wv = np.reshape(waveforms, (numChannels, numSamples))
+
         gain[currentSpike,:] = np.fromfile(f, np.float32, numChannels)
         thresh[currentSpike,:] = np.fromfile(f, np.dtype('<u2'), numChannels)
         
-        recNum[currentSpike] = np.fromfile(f, np.dtype('<u2'), 1)
-
-        #print wv.shape        
+        recNum[currentSpike] = np.fromfile(f, np.dtype('<u2'), 1)       
         
         for ch in range(numChannels):
-            spikes[currentSpike,:,ch] = (np.float64(wv[:,ch])-32768)/(gain[currentSpike,ch]/1000)
+            spikes[currentSpike,:,ch] = (np.float64(wv[ch])-32768)/(gain[currentSpike,ch]/1000)
         
         currentSpike += 1
         
