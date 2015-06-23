@@ -4,7 +4,7 @@ ephys2plx
 Here are some Matlab .m files and a Matlab mex function (c language) used to convert Open Ephys data files to the Plexon .plx file, which can be opened by Plexon Offline-Sorter.
 
 #Compile mex file
-The two mex files ("ephys2plx\_mex.mexmaci64" and "ephys2plx\_mex.mexw64") are compiled with Matlab 2014a, if your Matlab version is older than **2014a**, you may need to compile **ephys2plx_mex.c**
+The two mex files ("ephys2plx\_mex.mexmaci64" and "ephys2plx\_mex.mexw64") are compiled with Matlab 2013a, if your Matlab version is different than **2013a**, you may need to compile **ephys2plx_mex.c**
 
 To compile the ephys2plx_mex.c file:
 

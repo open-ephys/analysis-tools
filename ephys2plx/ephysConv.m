@@ -11,6 +11,15 @@ FileHeaders{2,1}=cell(size(ephysInfo.electrodes,1),1);
 for i=1:size(ephysInfo.electrodes,1)
     electrodeName = ephysInfo.electrodes{i,1};
     electrodeName(electrodeName==' ') = '';
+    if ~isempty(strfind(electrodeName,'SingleElectrode')) 
+        electrodeName=strrep(electrodeName,'SingleElectrode','SE');
+    end
+    if ~isempty(strfind(electrodeName,'Stereotrode'))
+        electrodeName=strrep(electrodeName,'Stereotrode','ST');
+    end
+    if ~isempty(strfind(electrodeName,'Tetrode'))
+        electrodeName=strrep(electrodeName,'Tetrode','TT');
+    end
     SpikeFileName = [pathName electrodeName '.spikes'];
     FileNames{2,1}{i,1} = SpikeFileName;
     FileNames{2,1}{i,2} = ephysInfo.electrodes{i,2};
