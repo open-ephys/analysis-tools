@@ -50,7 +50,7 @@ struct Ephys_SpikeHead
     char            Format[25];         // format "Open Ephys Data Format"
     float           Version;            // File format version "0.2000"
     unsigned int    Header_bytes;       // Header length. "1024"
-    char            Desciption[250];    // descripthon.
+    char            Desciption[366];    // descripthon.
     char            Date_created[20];   // File create date "20-Jan-2014 160913"
     char            Electrode[25];      // Electrode Name "Single electrode 1"
     unsigned int    Num_channels;       // num_channels "1"
@@ -102,15 +102,22 @@ struct Ephys_SpikeDataPacket
 {
     unsigned char  EventType;           // uint8 event type
     long long      Timestamp;           // int64 Timestamp
-    unsigned short ElectrodeID;         // uint16 electrodeID
+	long long	   Timestamp_soft;		// int64 software Timestamp
+	unsigned short source;				// uint16 Internal electrode index
     unsigned short NumChannels;         // uint16 number of channels (N)
     unsigned short NumSamplesPerSpike;  // uint16 number of samples per spike (M)
+	unsigned short sortedId;			// unit16 sorted unit ID
+	unsigned short ElectrodeID;         // uint16 electrodeID
+	unsigned short channel;				// uint16 channel index
+	unsigned char  color[3];
+	float		   pcProj[2];
+	unsigned short samplingFrequencyHz; // uint16 sampling frequency
 } Ephys_SpikeDataPacket, **iEphys_SpikeDataPacket;
 
 struct Ephys_SpikeDataPacket_Data
 {
     short		   *Data;               // pointer of uint16 array; N*M uint16 number of samples (individual channels are contiguous); NOTE: in Ephys this is uint16, but we will convert to short before put it in
-    unsigned short *Gains;              // pointer of uint16 array; N uint16 gains (actually gain*1000, to increase resolution)
+    float		   *Gains;              // pointer of float array; N float gains 
     unsigned short *Thresholds;         // pointer of uint16 array; N uint16 thresholds used for spike extraction 
 } Ephys_SpikeDataPacket_Data, **iEphys_SpikeDataPacket_Data;
 
@@ -390,9 +397,9 @@ void ephysReadDataPacket(){
     {
         file = iSpikeFiles[i];
 		//debug info
-		//mexPrintf("File pointer for SpikeFile: %d\n", file->_file);
+		mexPrintf("File pointer for SpikeFile: %d\n", file->_file);
         rewind(file);
-        //mexPrintf("Ephys_SpikeHead.Header_bytes: %d\n",iEphys_SpikeHead[i]->Header_bytes);
+        mexPrintf("Ephys_SpikeHead.Header_bytes: %d\n",iEphys_SpikeHead[i]->Header_bytes);
         fseek(file, iEphys_SpikeHead[i]->Header_bytes, 0);
         iEphys_SpikeDataPacket[i] = (struct Ephys_SpikeDataPacket *) mxCalloc(1,sizeof(struct Ephys_SpikeDataPacket));
         if (iEphys_SpikeDataPacket[i]==NULL) {
@@ -405,11 +412,11 @@ void ephysReadDataPacket(){
         }
         
         //Debug Info
-        //mexPrintf("EventType = %d\n",iEphys_SpikeDataPacket[i]->EventType);
-        //mexPrintf("Timestamp = %d\n",iEphys_SpikeDataPacket[i]->Timestamp);
-        //mexPrintf("ElectrodeID = %d\n",iEphys_SpikeDataPacket[i]->ElectrodeID);
-        //mexPrintf("NumChannels = %d\n",iEphys_SpikeDataPacket[i]->NumChannels);
-        //mexPrintf("NumSamplesPerSpike = %d\n",iEphys_SpikeDataPacket[i]->NumSamplesPerSpike);
+       // mexPrintf("EventType = %d\n",iEphys_SpikeDataPacket[i]->EventType);
+       // mexPrintf("Timestamp = %d\n",iEphys_SpikeDataPacket[i]->Timestamp);
+       // mexPrintf("ElectrodeID = %d\n",iEphys_SpikeDataPacket[i]->ElectrodeID);
+       // mexPrintf("NumChannels = %d\n",iEphys_SpikeDataPacket[i]->NumChannels);
+       // mexPrintf("NumSamplesPerSpike = %d\n",iEphys_SpikeDataPacket[i]->NumSamplesPerSpike);
         
         iEphys_SpikeDataPacket_Data[i] = (struct Ephys_SpikeDataPacket_Data *) mxCalloc(1,sizeof(struct Ephys_SpikeDataPacket_Data));
         if (iEphys_SpikeDataPacket[i]==NULL) {
@@ -439,7 +446,7 @@ void ephysReadDataPacket(){
 			}
 			
 			iEphys_SpikeDataPacket_Data[i]->Data = (unsigned short *)mxCalloc(iEphys_SpikeDataPacket[i]->NumChannels * iEphys_SpikeDataPacket[i]->NumSamplesPerSpike, sizeof(unsigned short));
-			iEphys_SpikeDataPacket_Data[i]->Gains = (unsigned short *)mxCalloc(iEphys_SpikeDataPacket[i]->NumChannels, sizeof(unsigned short));
+			iEphys_SpikeDataPacket_Data[i]->Gains = (float *)mxCalloc(iEphys_SpikeDataPacket[i]->NumChannels, sizeof(float));
 			iEphys_SpikeDataPacket_Data[i]->Thresholds = (unsigned short *)mxCalloc(iEphys_SpikeDataPacket[i]->NumChannels, sizeof(unsigned short));
 			if ((iEphys_SpikeDataPacket_Data[i]->Data == NULL) || (iEphys_SpikeDataPacket_Data[i]->Gains == NULL) || (iEphys_SpikeDataPacket_Data[i]->Thresholds == NULL)) {
 				mexErrMsgTxt("Out of memory CODE:2-4 !");
@@ -449,7 +456,7 @@ void ephysReadDataPacket(){
 			if (!feof(file))
 			{
 				fread(iEphys_SpikeDataPacket_Data[i]->Data, sizeof(unsigned short), iEphys_SpikeDataPacket[i]->NumChannels * iEphys_SpikeDataPacket[i]->NumSamplesPerSpike, file);
-				fread(iEphys_SpikeDataPacket_Data[i]->Gains, sizeof(unsigned short), iEphys_SpikeDataPacket[i]->NumChannels, file);
+				fread(iEphys_SpikeDataPacket_Data[i]->Gains, sizeof(float), iEphys_SpikeDataPacket[i]->NumChannels, file);
 				fread(iEphys_SpikeDataPacket_Data[i]->Thresholds, sizeof(unsigned short), iEphys_SpikeDataPacket[i]->NumChannels, file);
 
 				//debug data
@@ -854,6 +861,13 @@ void ReadandWriteDataPacket (FILE *plx_fp) {
 
 					int tempNumChannels = iEphys_SpikeDataPacket[i]->NumChannels;
 					int tempNumSamplesPerSpike = iEphys_SpikeDataPacket[i]->NumSamplesPerSpike;
+					
+					//Debug Info
+       // mexPrintf("EventType = %d\n",iEphys_SpikeDataPacket[i]->EventType);
+       // mexPrintf("Timestamp = %d\n",iEphys_SpikeDataPacket[i]->Timestamp);
+       // mexPrintf("ElectrodeID = %d\n",iEphys_SpikeDataPacket[i]->ElectrodeID);
+       // mexPrintf("NumChannels = %d\n",iEphys_SpikeDataPacket[i]->NumChannels);
+       // mexPrintf("NumSamplesPerSpike = %d\n",iEphys_SpikeDataPacket[i]->NumSamplesPerSpike);
 
 					if ((iEphys_SpikeDataPacket[i]->NumChannels > 0) && (iEphys_SpikeDataPacket[i]->NumSamplesPerSpike > 0))
 					{
@@ -866,7 +880,7 @@ void ReadandWriteDataPacket (FILE *plx_fp) {
 
 						iEphys_SpikeDataPacket_Data[i]->Data = (short *)mxCalloc(iEphys_SpikeDataPacket[i]->NumChannels * iEphys_SpikeDataPacket[i]->NumSamplesPerSpike, sizeof(short));
 						tempSamples = (unsigned short *)mxCalloc(iEphys_SpikeDataPacket[i]->NumChannels * iEphys_SpikeDataPacket[i]->NumSamplesPerSpike, sizeof(unsigned short));
-						iEphys_SpikeDataPacket_Data[i]->Gains = (unsigned short *)mxCalloc(iEphys_SpikeDataPacket[i]->NumChannels, sizeof(unsigned short));
+						iEphys_SpikeDataPacket_Data[i]->Gains = (float *)mxCalloc(iEphys_SpikeDataPacket[i]->NumChannels, sizeof(float));
 						iEphys_SpikeDataPacket_Data[i]->Thresholds = (unsigned short *)mxCalloc(iEphys_SpikeDataPacket[i]->NumChannels, sizeof(unsigned short));
 						if ((iEphys_SpikeDataPacket_Data[i]->Data == NULL) || (iEphys_SpikeDataPacket_Data[i]->Gains == NULL) || (iEphys_SpikeDataPacket_Data[i]->Thresholds == NULL)) {
 							mexErrMsgTxt("Out of memory CODE:2-3 !");
@@ -879,7 +893,7 @@ void ReadandWriteDataPacket (FILE *plx_fp) {
 							iEphys_SpikeDataPacket_Data[i]->Data[indexP] = tempSamples[indexP] - 32768;
 						}
 
-						fread(iEphys_SpikeDataPacket_Data[i]->Gains, sizeof(unsigned short), iEphys_SpikeDataPacket[i]->NumChannels, file);
+						fread(iEphys_SpikeDataPacket_Data[i]->Gains, sizeof(float), iEphys_SpikeDataPacket[i]->NumChannels, file);
 						fread(iEphys_SpikeDataPacket_Data[i]->Thresholds, sizeof(unsigned short), iEphys_SpikeDataPacket[i]->NumChannels, file);
 						fread(voidData, sizeof(short), 1, file);  //Unknown data in Ephys spike file.
 
@@ -1614,8 +1628,8 @@ void getSpikeHead(struct Ephys_SpikeHead *Ephys_SpikeHead, mxArray *cellElement)
     tmp=mxGetFieldByNumber(cellElement, 0, 3);
     if (mxGetClassID(tmp) == mxCHAR_CLASS)
     {
-        string=mxCalloc(250,sizeof(char));
-        getString_mxArray(tmp,string,250);
+        string=mxCalloc(366,sizeof(char));
+        getString_mxArray(tmp,string,366);
         strcpy(Ephys_SpikeHead->Desciption, string);
         mxFree(string);
     }else

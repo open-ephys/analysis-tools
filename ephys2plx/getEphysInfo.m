@@ -47,7 +47,14 @@ for i = 1:xRoot.getChildNodes.getLength-1
                 processors{processorIndex,2} = processorName;
                 processors{processorIndex,3} = []; % empty cell for channels
 
-                if strcmp(processorName, 'Filters/Spike Detector')
+                if ( strcmp(processorName, 'Filters/Spike Detector') || strcmp(processorName, 'Filters/Spike Sorter'))
+                    if (strcmp(processorName, 'Filters/Spike Sorter'))
+                        xProcessor = xProcessor.item(1);
+                        nameAttrIdx = 3;
+                    else
+                        nameAttrIdx = 0;
+                    end
+                    
                    
                     electrodeIndex = 0;
                     
@@ -60,7 +67,7 @@ for i = 1:xRoot.getChildNodes.getLength-1
                             
                            xElectrode = xProcessor.item(k);
                            
-                           electrodeName = char(xElectrode.getAttributes.item(0).getValue);
+                           electrodeName = char(xElectrode.getAttributes.item(nameAttrIdx).getValue);
                            channels = [ ];
                            
                            % LOOP THROUGH CHANNEL NODES FOR ELECTRODE
@@ -124,7 +131,8 @@ for filenum = 1:length(directory_contents)
        
        % don't need to do anything here
        
-   elseif numel(strfind(directory_contents(filenum).name, '.events')) > 0
+   elseif ((numel(strfind(directory_contents(filenum).name, '.events')) > 0)...
+       && ((numel(strfind(directory_contents(filenum).name, 'messages'))) <= 0))
        
        info.events_file = directory_contents(filenum).name;
        
