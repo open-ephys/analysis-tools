@@ -18,6 +18,7 @@ import scipy.signal
 import scipy.io
 import time
 import struct
+import json
 from copy import deepcopy
 
 # constants
@@ -296,6 +297,26 @@ def readHeader(f):
 def downsample(trace,down):
     downsampled = scipy.signal.resample(trace,np.shape(trace)[0]/down)
     return downsampled
+    
+def writeChannelMapFile(mapping, filename='mapping.prb'):
+    
+    with open(filename, 'w') as outfile:
+        json.dump( \
+                      {'0': {  \
+                            'mapping' : mapping.tolist(), \
+                            'reference' : [-1] * mapping.size, \
+                            'enabled' : [True] * mapping.size \
+                            }, \
+                        'refs' : {\
+                            'channels' : [-1] * mapping.size \
+                            }, \
+                        'recording' : { \
+                           'channels': [False] * mapping.size \
+                           }, \
+                     }, \
+                      outfile, \
+                      indent = 4, separators = (',', ': ') \
+                 ) 
     
 def pack(folderpath,source='100',**kwargs):  
 #convert single channel open ephys channels to a .dat file for compatibility with the KlustaSuite, Neuroscope and Klusters
