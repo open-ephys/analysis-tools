@@ -108,13 +108,15 @@ for processor = 1:size(info.processors,1)
                         info.kwdfiles{processor_index} = kwdfile;
                     end
                     
+                    
                     internal_path = ['/recordings/' int2str(X-1)];
     
                     h5create(kwdfile, [internal_path '/data'], ...
-                        [numel(this_block) numel(recorded_channels)], ...
+                        [numel(recorded_channels) numel(this_block)], ...
                         'Datatype', 'int16', ...
-                        'ChunkSize', [numel(this_block) 1]);
+                        'ChunkSize', [1 numel(this_block)]);
                     
+
                     h5create(kwikfile, [internal_path '/start_sample'], [1 1],...
                         'Datatype', 'int64');
                     h5write(kwikfile, [internal_path '/start_sample'], int64(timestamps(start_sample)));
@@ -123,10 +125,36 @@ for processor = 1:size(info.processors,1)
                         'Datatype', 'int16');
                     h5write(kwikfile, [internal_path '/sample_rate'], int16(info_continuous.header.sampleRate));
 
+                    h5create(kwdfile, '/kwik_version', [1 1],...
+                        'Datatype', 'int16');
+                    h5write(kwdfile, '/kwik_version', int16(2));
+         
+                    h5writeatt(kwdfile, '/', 'kwik_version', 2);
+
+                    h5writeatt(kwdfile, [internal_path ],'start_sample', int64(timestamps(start_sample)));
+                    h5writeatt(kwdfile, [internal_path ],'sample_rate', int16(info_continuous.header.sampleRate));
+
+                    h5create(kwdfile, [internal_path '/start_sample'], [1 1],...
+                        'Datatype', 'int64');
+                    h5write(kwdfile, [internal_path '/start_sample'], int64(timestamps(start_sample)));
+                        
+                    h5create(kwdfile, [internal_path '/sample_rate'], [1 1],...
+                        'Datatype', 'int16');
+                    h5write(kwdfile, [internal_path '/sample_rate'], int16(info_continuous.header.sampleRate));
+
+                    h5writeatt(kwdfile, internal_path, 'bit_depth', info_continuous.header.bitVolts);
+                    h5create(kwdfile, [internal_path '/bit_depth'], [1 1],...
+                        'Datatype', 'double');
+                    h5write(kwdfile, [internal_path '/sample_rate'], (info_continuous.header.bitVolts));
+
+                    h5create(kwdfile, [internal_path '/application_data/channel_bit_volts'], [1 1], ...
+                        'DataType', 'double');
+                    h5write(kwdfile, [internal_path '/application_data/channel_bit_volts'], (info_continuous.header.bitVolts));
+                    h5writeatt(kwdfile, [internal_path '/application_data'], 'channel_bit_volts', (info_continuous.header.bitVolts));
                 end
 
                 h5write(kwdfile,['/recordings/' int2str(X-1) '/data'], ...
-                    this_block(1:end), [1 ch], [numel(this_block) 1]);
+                    (this_block(1:end))', [ch 1], [1 numel(this_block)]);
 
             end
 
