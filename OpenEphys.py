@@ -20,6 +20,7 @@ import time
 import struct
 import json
 from copy import deepcopy
+import re
 
 # constants
 NUM_HEADER_BYTES = 1024L
@@ -72,15 +73,32 @@ def loadFolder(folderpath,**kwargs):
             
     return data
 
-def loadFolderToArray(folderpath, channels = 'all', dtype = float, source = '100'):
+def loadFolderToArray(folderpath, channels = 'all', dtype = float, 
+    source = '100', recording=None):
     '''Load CH continuous files in specified folder to a single numpy array. By default all 
     CH continous files are loaded in numerical order, ordering can be specified with
-    optional channels argument which should be a list of channel numbers.'''
+    optional channels argument which should be a list of channel numbers.
+    
+    recording : int, or None
+        Multiple recordings in the same folder are suffixed with an
+        incrementing label. For the first or only recording, leave this as
+        None. Otherwise, specify an integer.
+    '''
 
     if channels == 'all': 
-        channels = _get_sorted_channels(folderpath)
+        channels = _get_sorted_channels(folderpath, recording=recording)
 
-    filelist = [source + '_CH' + x + '.continuous' for x in map(str,channels)]
+    # Get the list of continuous filenames
+    if recording is None:
+        filelist = [source + '_CH' + x + '.continuous' for x in map(str,channels)]
+    else:
+        if recording == 1:
+            # The first recording has no suffix
+            filelist = ['%s_CH%d.continuous' % (source, chan)
+                for chan in channels]
+        else:
+            filelist = ['%s_CH%d_%d.continuous' % (source, chan, recording)
+                for chan in channels]
 
     t0 = time.time()
     numFiles = 1
@@ -426,7 +444,8 @@ class ProgressBar:
         return str(self.prog_bar)
 #*************************************************************
 
-def pack_2(folderpath, filename = 'openephys.dat', source='100', channels = 'all', dref = None):
+def pack_2(folderpath, filename='openephys.dat', source='100', 
+    channels='all', dref=None, recording=None):
 
     '''Alternative version of pack which uses numpy's tofile function to write data.
     pack_2 is much faster than pack and avoids quantization noise incurred in pack due
@@ -441,9 +460,14 @@ def pack_2(folderpath, filename = 'openephys.dat', source='100', channels = 'all
 
     dref:  Digital referencing - either supply a channel number or 'ave' to reference to the 
            average of packed channels.
+    
+    recording : None, or int
+        If there is only one recording in the folder, leave as None.
+        Otherwise, specify the number of the recording as an integer.
     '''
 
-    data_array = loadFolderToArray(folderpath, channels, np.int16, source)
+    data_array = loadFolderToArray(folderpath, channels, np.int16, source,
+        recording=recording)
 
     if dref: 
         if dref == 'ave':
@@ -460,6 +484,53 @@ def pack_2(folderpath, filename = 'openephys.dat', source='100', channels = 'all
     print('Packing data to file: ' + filename)
     data_array.tofile(os.path.join(folderpath,filename))
 
-def _get_sorted_channels(folderpath):
-    return sorted([int(f.split('_CH')[1].split('.')[0]) for f in os.listdir(folderpath) 
+def regex_capture(pattern, list_of_strings, take_index=0):
+    """Apply regex `pattern` to each string and return a captured group.
+    
+    pattern : string, regex pattern
+    list_of_strings : list of strings to apply the pattern to
+        Strings that do not match the pattern are ignored.
+    take_index : The index of the captured group to return
+    
+    Returns: a list of strings. Each element is the captured group from
+        one of the input strings.
+    """
+    res_l = []
+    for s in list_of_strings:
+        m = re.match(pattern, s)
+        
+        # Append the capture, if any
+        if m is not None:
+            res_l.append(m.groups()[take_index])
+    
+    return res_l
+
+def _get_sorted_channels(folderpath, recording=None):
+    """Return a sorted list of the continuous channels in folderpath.
+    
+    folderpath : string, path to location of continuous files on disk
+    recording : None, or int
+        If there is only one recording in the folder, leave as None.
+        Otherwise, specify the number of the recording as an integer.
+    """
+    if recording is None:
+        return sorted([int(f.split('_CH')[1].split('.')[0]) for f in os.listdir(folderpath) 
                     if '.continuous' in f and '_CH' in f]) 
+    else:
+        # Form a string from the recording number
+        if recording == 1:
+            # The first recording has no suffix
+            recording_s = ''
+        else:
+            recording_s = '_%d' % recording
+        
+        # Form a regex pattern to be applied to each filename
+        # We will capture the channel number: (\d+)
+        regex_pattern = '%s_CH(\d+)%s.continuous' % ('100', recording_s)
+        
+        # Apply the pattern to each filename and return the captured channels
+        channel_numbers_s = regex_capture(regex_pattern, os.listdir(folderpath))
+        channel_numbers_int = map(int, channel_numbers_s)
+        return sorted(channel_numbers_int)
+        
+        
