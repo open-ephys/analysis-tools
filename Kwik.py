@@ -42,9 +42,42 @@ def write(filename, dataset=0, bit_depth=1.0, sample_rate=25000.0):
     
     f.close()
     
+def get_sample_rate(f):
+    return f['recordings']['0'].attrs['sample_rate'] 
     
-     
+def get_edge_times(f, TTLchan, rising=True):
     
-                        
+    events_for_chan = np.where(np.squeeze(f['event_types']['TTL']['events']['user_data']['event_channels']) == TTLchan)
+    
+    edges = np.where(np.squeeze(f['event_types']['TTL']['events']['user_data']['eventID']) == 1*rising) 
+    
+    edges_for_chan = np.intersect1d(events_for_chan, edges)
+    
+    edge_samples = np.squeeze(f['event_types']['TTL']['events']['time_samples'][:])[edges_for_chan]
+    edge_times = edge_samples / get_sample_rate(f)
+    
+    return edge_times
+
+def get_rising_edge_times(filename, TTLchan):
+    
+    f = h5py.File(filename, 'r')
+    
+    return get_edge_times(f, TTLchan, True)
+    
+
+def get_falling_edge_times(filename, TTLchan):
+    
+    f = h5py.File(filename, 'r')
+    
+    return get_edge_times(f, TTLchan, False)  
+    
+def get_experiment_start_time(filename):
+    
+    f = h5py.File(filename, 'r')
+    
+    return f['event_types']['Messages']['events']['time_samples'][1]/ get_sample_rate(f)
+
+    
+            
                          
                         
