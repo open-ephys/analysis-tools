@@ -4,7 +4,7 @@ Created on Wed Oct  8 12:05:54 2014
 
 @author: Josh Siegle
 
-Loads .kwd, .kwik and .kwx files
+Loads .kwd, .kwe, .kwik and .kwx files
 
 example:
     RawData = Kwik.load('experiment1_100.raw.kwd')
@@ -24,16 +24,26 @@ def load(filename, dataset=0):
         data['timestamps'] = ((np.arange(0,data['data'].shape[0])
                              + data['info']['start_time'])       
                              / data['info']['sample_rate'])
-        
+        return(data)
+    
+    elif filename[-4:] == '.kwe':
+        data = {}    
+        data['Messages'] = f['event_types']['Messages']['events']
+        data['TTLs'] = f['event_types']['TTL']['events']
+        return(data)
+    
     elif filename[-4:] == 'kwik':
         data = {}    
         data['Messages'] = f['event_types']['Messages']['events']
         data['TTLs'] = f['event_types']['TTL']['events']
-        
+        return(data)
+    
     elif filename[-4:] == '.kwx':
         data = f['channel_groups']
+        return(data)
     
-    return(data)
+    else:
+        print('Supported files: .kwd, .kwe, .kwik, .kwx')
 
 
 def write(filename, dataset=0, bit_depth=1.0, sample_rate=25000.0):
