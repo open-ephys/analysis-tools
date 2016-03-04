@@ -6,9 +6,19 @@ Created on Wed Oct  8 12:05:54 2014
 
 Loads .kwd, .kwe, .kwik and .kwx files
 
-example:
-    RawData = Kwik.load('experiment1_100.raw.kwd')
-    Events = Kwik.load('experiment1.kwik')
+Examples:
+    # load recording dataset 0
+    Raw = Kwik.load('experiment1_100.raw.kwd')
+    
+    # load a specific dataset
+    Raw = Kwik.load('experiment1_100.raw.kwd', 7)
+    
+    # load all datasets
+    Raw = Kwik.load('experiment1_100.raw.kwd', 'all')
+    
+    # load spikes and events
+    Events = Kwik.load('experiment1.kwe')
+    Spks = Kwik.load('experiment1.kwx')
 """
 
 import h5py
@@ -18,12 +28,24 @@ def load(filename, dataset=0):
     f = h5py.File(filename, 'r')
     
     if filename[-4:] == '.kwd':
-        data = {}    
-        data['info'] = f['recordings'][str(dataset)].attrs
-        data['data'] = f['recordings'][str(dataset)]['data']
-        data['timestamps'] = ((np.arange(0,data['data'].shape[0])
-                             + data['info']['start_time'])       
-                             / data['info']['sample_rate'])
+        data = {}
+        
+        if dataset == 'all':
+            data['info'] = {Rec: f['recordings'][Rec].attrs 
+                            for Rec in f['recordings']}
+            data['data'] = {Rec: f['recordings'][Rec]['data'] 
+                            for Rec in f['recordings']}
+            data['timestamps'] = {Rec: ((
+                                        np.arange(0,data['data'][Rec].shape[0])
+                                        + data['info'][Rec]['start_time'])
+                                       / data['info'][Rec]['sample_rate'])
+                                       for Rec in f['recordings']}
+        else:
+            data['info'] = f['recordings'][str(dataset)].attrs
+            data['data'] = f['recordings'][str(dataset)]['data']
+            data['timestamps'] = ((np.arange(0,data['data'].shape[0])
+                                   + data['info']['start_time'])
+                                  / data['info']['sample_rate'])
         return(data)
     
     elif filename[-4:] == '.kwe':
