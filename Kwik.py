@@ -33,16 +33,10 @@ def convert(filename, filetype='dat', dataset=0):
 
     f = h5py.File(filename, 'r')
     fnameout = filename[:-3] + filetype
-    fid = open(fnameout, 'wb')
 
     if filetype == 'dat':    
-        data = f['recordings'][str(dataset)]['data']
-        
-        for sample_number in range(data.shape[0]):
-            sample = data[sample_number,:]
-            sample.tofile(fid, format="i2")
-        
-    fid.close()
+        data = f['recordings'][str(dataset)]['data'][:,:]
+        data.tofile(fnameout)
     
     
 def write(filename, dataset=0, bit_depth=1.0, sample_rate=25000.0):
