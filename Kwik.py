@@ -18,12 +18,28 @@ def load(filename, dataset=0):
     data = {}
     
     data['info'] = f['recordings'][str(dataset)].attrs
-    data['data'] = f['recordings'][str(dataset)]['data']
+    data['data'] = f['recordings'][str(dataset)]['data'] # not converted to microvolts!!!!
     data['timestamps'] = ((np.arange(0,data['data'].shape[0])
                          + data['info']['start_time'])       
                          / data['info']['sample_rate'])
                          
     return data
+    
+def convert(filename, filetype='dat', dataset=0):
+
+    f = h5py.File(filename, 'r')
+    fnameout = filename[:-3] + filetype
+    fid = open(fnameout, 'wb')
+
+    if filetype == 'dat':    
+        data = f['recordings'][str(dataset)]['data']
+        
+        for sample_number in range(data.shape[0]):
+            sample = data[sample_number,:]
+            sample.tofile(fid, format="i2")
+        
+    fid.close()
+    
     
 def write(filename, dataset=0, bit_depth=1.0, sample_rate=25000.0):
     
