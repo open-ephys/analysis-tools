@@ -12,18 +12,32 @@ import h5py
 import numpy as np
 
 def load(filename, dataset=0):
+    
+    # loads raw data into an HDF5 dataset
+    # NOT converted to microvolts --- need to multiply by 0.195 scaling factor
+    # timestamps may need to be shifted by get_experiment_start_time() to align with events
         
     f = h5py.File(filename, 'r')
     
     data = {}
     
     data['info'] = f['recordings'][str(dataset)].attrs
-    data['data'] = f['recordings'][str(dataset)]['data']
+    data['data'] = f['recordings'][str(dataset)]['data'] # not converted to microvolts!!!! need to multiply by 0.195
     data['timestamps'] = ((np.arange(0,data['data'].shape[0])
                          + data['info']['start_time'])       
                          / data['info']['sample_rate'])
                          
     return data
+    
+def convert(filename, filetype='dat', dataset=0):
+
+    f = h5py.File(filename, 'r')
+    fnameout = filename[:-3] + filetype
+
+    if filetype == 'dat':    
+        data = f['recordings'][str(dataset)]['data'][:,:]
+        data.tofile(fnameout)
+    
     
 def write(filename, dataset=0, bit_depth=1.0, sample_rate=25000.0):
     
