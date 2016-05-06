@@ -32,9 +32,16 @@ def load(filename, dataset=0):
         
         if dataset == 'all':
             data['info'] = {Rec: f['recordings'][Rec].attrs 
-                            for Rec in f['recordings']}
-            data['data'] = {Rec: f['recordings'][Rec]['data'] 
-                            for Rec in f['recordings']}
+                            for Rec in f['recordings'].keys()}
+            
+            data['channel_bit_volts'] = {Rec: f['recordings'][Rec]\
+                                               ['application_data']\
+                                               ['channel_bit_volts']
+                                         for Rec in f['recordings'].keys()}
+            
+            data['data'] = {Rec: f['recordings'][Rec]['data']
+                            for Rec in f['recordings'].keys()}
+            
             data['timestamps'] = {Rec: ((
                                         np.arange(0,data['data'][Rec].shape[0])
                                         + data['info'][Rec]['start_time'])
@@ -42,6 +49,9 @@ def load(filename, dataset=0):
                                        for Rec in f['recordings']}
         else:
             data['info'] = f['recordings'][str(dataset)].attrs
+            data['channel_bit_volts'] = f['recordings'][str(dataset)]\
+                                         ['application_data']\
+                                         ['channel_bit_volts']
             data['data'] = f['recordings'][str(dataset)]['data']
             data['timestamps'] = ((np.arange(0,data['data'].shape[0])
                                    + data['info']['start_time'])
@@ -67,6 +77,16 @@ def load(filename, dataset=0):
     else:
         print('Supported files: .kwd, .kwe, .kwik, .kwx')
 
+
+def convert(filename, filetype='dat', dataset=0):
+
+    f = h5py.File(filename, 'r')
+    fnameout = filename[:-3] + filetype
+
+    if filetype == 'dat':    
+        data = f['recordings'][str(dataset)]['data'][:,:]
+        data.tofile(fnameout)
+    
 
 def write(filename, dataset=0, bit_depth=1.0, sample_rate=25000.0):
     
