@@ -54,6 +54,7 @@ function [data, timestamps, info] = load_open_ephys_data_faster(filename)
 if ~any(strcmp(filetype,{'.events','.continuous','.spikes'}))
     error('File extension not recognized. Please use a ''.continuous'', ''.spikes'', or ''.events'' file.');
 end
+
 fid = fopen(filename);
 fseek(fid,0,'eof');
 filesize = ftell(fid);
@@ -61,37 +62,60 @@ filesize = ftell(fid);
 NUM_HEADER_BYTES = 1024;
 fseek(fid,0,'bof');
 hdr = fread(fid, NUM_HEADER_BYTES, 'char*1');
-eval(char(hdr'));
-info.header = header;
-if (isfield(info.header, 'version'))
-    if info.header.version <= 0.3
-        error('Only version 0.4 is supported');
-    end
+info = getHeader(hdr);
+if isfield(info.header, 'version')
+    version = info.header.version;
 else
-    error('Only version 0.4 is supported');
+    version = 0.0;
 end
 
 switch filetype
     case '.events'
-        blockBytes = [NUM_HEADER_BYTES 8 2 1 1 1 1 2];
-        blockSize = sum(blockBytes(2:end));
-        numIdx = floor((filesize - NUM_HEADER_BYTES)/blockSize);
-        timestamps = freadoff(sum(blockBytes(1:1)), fid, numIdx, 'int64', blockSize-8, 'l')./info.header.sampleRate;
-        info.sampleNum = freadoff(sum(blockBytes(1:2)), fid, numIdx, 'uint16', blockSize-2, 'n');
-        info.eventType = freadoff(sum(blockBytes(1:3)), fid, numIdx, 'uint8', blockSize-1, 'n');
-        info.nodeId = freadoff(sum(blockBytes(1:4)), fid, numIdx, 'uint8', blockSize-1, 'n');
-        info.eventId = freadoff(sum(blockBytes(1:5)), fid, numIdx, 'uint8', blockSize-1, 'n');
-        data = freadoff(sum(blockBytes(1:6)), fid, numIdx, 'uint8', blockSize-1, 'n');
-        info.recordingNumber = freadoff(sum(blockBytes(1:7)), fid, numIdx, 'uint16', blockSize-2, 'n');
+        bStr = {'timestamps' 'sampleNum' 'eventType' 'nodeId' 'eventId' 'data' 'recNum'};
+        bTypes = {'int64' 'uint16' 'uint8' 'uint8' 'uint8' 'uint8' 'uint16'};      
+        bRepeat = {1 1 1 1 1 1 1};
+        dblock = struct('Repeat',bRepeat,'Types', bTypes,'Str',bStr);
+        if version < 0.2, dblock(7) = [];  end
+        if version < 0.1, dblock(1).Types = 'uint64'; end
     case '.continuous'
         SAMPLES_PER_RECORD = 1024;
-        blockBytes = [NUM_HEADER_BYTES 8 2 2 2*SAMPLES_PER_RECORD 10];
-        blockSize = sum(blockBytes(2:end));
-        numIdx = floor((filesize - NUM_HEADER_BYTES)/blockSize);
-        info.ts = freadoff(sum(blockBytes(1:1)), fid, numIdx, 'int64', blockSize-8, 'l');
-        info.nsamples = freadoff(sum(blockBytes(1:2)), fid, numIdx, 'uint16', blockSize-2, 'l');
-        info.recNum = freadoff(sum(blockBytes(1:3)), fid, numIdx, 'uint16', blockSize-2,'n');
-        data = freadoff(sum(blockBytes(1:4)), fid, numIdx*SAMPLES_PER_RECORD, '1024*int16', blockSize-2*SAMPLES_PER_RECORD, 'b').*info.header.bitVolts; % read in data
+        bStr = {'ts' 'nsamples' 'recNum' 'data' 'recordMarker'};
+        bTypes = {'int64' 'uint16' 'uint16' 'int16' 'uint8'};
+        bRepeat = {1 1 1 SAMPLES_PER_RECORD 10};
+        dblock = struct('Repeat',bRepeat,'Types', bTypes,'Str',bStr);
+        if version < 0.2, dblock(3) = []; end
+        if version < 0.1, dblock(1).Types = 'uint64'; dblock(2).Types = 'int16'; end
+    case '.spikes'
+        num_channels = info.header.num_channels;
+        num_samples = 40; 
+        bStr = {'eventType' 'timestamps' 'timestamps_software' 'source' 'nChannels' 'nSamples' 'sortedId' 'electrodeID' 'channel' 'color' 'pcProj' 'samplingFrequencyHz' 'data' 'gain' 'threshold' 'recordingNumber'};
+        bTypes = {'uint8' 'int64' 'int64' 'uint16' 'uint16' 'uint16' 'uint16' 'uint16' 'uint16' 'uint8' 'float32' 'uint16' 'uint16' 'float32' 'uint16' 'uint16'};
+        bRepeat = {1 1 1 1 1 1 1 1 1 3 2 1 num_channels*num_samples num_channels num_channels 1};
+        dblock = struct('Repeat',bRepeat,'Types', bTypes,'Str',bStr);
+        if version < 0.4,  dblock(7:12) = []; dblock(8).Types = 'uint16'; end
+        if version == 0.3, dblock = [dblock(1), struct('Repeat',1,'Types','uint32','Str','ts'), dblock(2:end)]; end
+        if version < 0.3, dblock(2) = []; end
+        if version < 0.2, dblock(9) = []; end
+        if version < 0.1, dblock(2).Types = 'uint64'; end
+end
+blockBytes = str2double(regexp({dblock.Types},'\d{1,2}$','match', 'once')) ./8 .* cell2mat({dblock.Repeat});
+numIdx = floor((filesize - NUM_HEADER_BYTES)/sum(blockBytes));
+
+switch filetype
+    case '.events'
+        timestamps = segRead('timestamps')./info.header.sampleRate;
+        info.sampleNum = segRead('sampleNum');
+        info.eventType = segRead('eventType');
+        info.nodeId = segRead('nodeId');
+        info.eventId = segRead('eventId');
+        data = segRead('data');
+        if version >= 0.2, info.recNum = segRead('recNum'); end
+    case '.continuous'
+        info.ts = segRead('ts');
+        info.nsamples = segRead('nsamples');
+        if ~all(info.nsamples == SAMPLES_PER_RECORD)&& version >= 0.1, error('Found corrupted record'); end
+        if version >= 0.2, info.recNum = segRead('recNum'); end
+        data = segRead('data', 'b').*info.header.bitVolts; % read in data
         timestamps = nan(size(data));
         current_sample = 0;
         for record = 1:length(info.ts)
@@ -99,24 +123,27 @@ switch filetype
             current_sample = current_sample + info.nsamples(record);
         end
     case '.spikes'
-        num_channels = info.header.num_channels;
-        num_samples = 40; 
-        blockBytes = [NUM_HEADER_BYTES 1 8 8 2 2 2 2 2 2 3 8 2 num_channels*num_samples*2 num_channels*4 num_channels*2 2];
-        blockSize = sum(blockBytes(2:end));
-        numIdx = floor((filesize - NUM_HEADER_BYTES)/blockSize);
-        timestamps = freadoff(sum(blockBytes(1:2)), fid, numIdx, 'int64', blockSize-8, 'l')./info.header.sampleRate;
-        info.source = freadoff(sum(blockBytes(1:4)), fid, numIdx, 'uint16', blockSize-2, 'l');
-        info.gain = freadoff(sum(blockBytes(1:14)), fid, numIdx, 'single', blockSize-4,'n');
-        info.thresh = freadoff(sum(blockBytes(1:15)), fid, numIdx, 'uint16', blockSize-2, 'l');
-        info.sortedId = freadoff(sum(blockBytes(1:7)), fid, numIdx, 'uint16', blockSize-2, 'l');
-        info.recNum = freadoff(sum(blockBytes(1:16)), fid, numIdx, 'uint16', blockSize-2, 'l');
-        data = freadoff(sum(blockBytes(1:13)), fid, numIdx*num_samples*num_channels, '160*uint16', blockSize-2*num_samples*num_channels, 'l');
-        data = permute(reshape(data, num_samples, num_channels, numIdx), [3 1 2]);
-        data = (data-32768)./(info.gain(1)/1000);
+        timestamps = segRead('timestamps')./info.header.sampleRate;
+        info.source = segRead('source');
+        info.samplenum = segRead('nSamples');
+        info.gain = permute(reshape(segRead('gain'), num_channels, numIdx), [2 1]);
+        info.thresh = permute(reshape(segRead('threshold'), num_channels, numIdx), [2 1]);
+        if version >= 0.4, info.sortedId = segRead('sortedId'); end
+        if version >= 0.2, info.recNum = segRead('recordingNumber'); end
+        data = permute(reshape(segRead('data'), num_samples, num_channels, numIdx), [3 1 2]);
+        data = (data-32768)./ permute(repmat(info.gain/1000,[1 1 num_samples]), [1 3 2]);
 end
-fclose(fid); % close the file
+fclose(fid);
+
+function seg = segRead(segName, mf)
+    if nargin == 1, mf = 'l'; end
+    segNum = find(strcmp({dblock.Str},segName));
+    fseek(fid, sum(blockBytes(1:segNum-1))+NUM_HEADER_BYTES, 'bof'); 
+    seg = fread(fid, numIdx*dblock(segNum).Repeat, sprintf('%d*%s', dblock(segNum).Repeat,dblock(segNum).Types), sum(blockBytes) - blockBytes(segNum), mf);
 end
-function data = freadoff(offset, fid, size, precision, skip, mf)
-fseek(fid, offset, 'bof'); 
-data = fread(fid, size, precision, skip, mf);
+
+end
+function info = getHeader(hdr)
+eval(char(hdr'));
+info.header = header;
 end
