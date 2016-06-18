@@ -144,9 +144,20 @@ def loadContinuous(filepath, dtype = float):
         
 #    f.close
     # pre-allocate samples
+    
+    # Data is loaded in records of size 1024 samples, one timestamp per record
+    
+    # This is where the data will go
     samples = np.zeros(MAX_NUMBER_OF_CONTINUOUS_SAMPLES, dtype)
+    
+    # This is where the timestamps will go
     timestamps = np.zeros(MAX_NUMBER_OF_RECORDS)
+    
+    # This might be the recording number?
     recordingNumbers = np.zeros(MAX_NUMBER_OF_RECORDS)
+    
+    # This is used to figure out how to assign into the predetermined `samples`
+    # array.
     indices = np.arange(0,MAX_NUMBER_OF_RECORDS*SAMPLES_PER_RECORD, SAMPLES_PER_RECORD, np.dtype(np.int64))
     
     #read in the data
@@ -159,10 +170,13 @@ def loadContinuous(filepath, dtype = float):
     #print f.tell()
     
     while f.tell() < fileLength:
-        
+        # Increment the record count
         recordNumber += 1        
         
+        # Read timestamp for this record
         timestamps[recordNumber] = np.fromfile(f,np.dtype('<i8'),1) # little-endian 64-bit signed integer 
+        
+        # Read the number of samples in this record
         N = np.fromfile(f,np.dtype('<u2'),1) # little-endian 16-bit unsigned integer
         
         #print index
@@ -170,13 +184,16 @@ def loadContinuous(filepath, dtype = float):
         if N != SAMPLES_PER_RECORD:
             raise Exception('Found corrupted record in block ' + str(recordNumber))
         
+        # Read and store the recording numbers
         recordingNumbers[recordNumber] = (np.fromfile(f,np.dtype('>u2'),1)) # big-endian 16-bit unsigned integer
         
+        # Convert the dtype
         if dtype == float: # Convert data to float array and convert bits to voltage.
             data = np.fromfile(f,np.dtype('>i2'),N) * float(header['bitVolts']) # big-endian 16-bit signed integer, multiplied by bitVolts   
         else:  # Keep data in signed 16 bit integer format.
             data = np.fromfile(f,np.dtype('>i2'),N)  # big-endian 16-bit signed integer
         try:
+            # Assign data into samples, using indices
             samples[indices[recordNumber]:indices[recordNumber+1]] = data            
         except ValueError:
             print type(index)
