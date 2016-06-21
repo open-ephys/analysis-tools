@@ -111,16 +111,20 @@ switch filetype
         data = segRead('data');
         if version >= 0.2, info.recNum = segRead('recNum'); end
     case '.continuous'
-        info.ts = segRead('ts');
+        if nargout>1
+            info.ts = segRead('ts');
+        end            
         info.nsamples = segRead('nsamples');
         if ~all(info.nsamples == SAMPLES_PER_RECORD)&& version >= 0.1, error('Found corrupted record'); end
         if version >= 0.2, info.recNum = segRead('recNum'); end
-        data = segRead('data', 'b').*info.header.bitVolts; % read in data
-        timestamps = nan(size(data));
-        current_sample = 0;
-        for record = 1:length(info.ts)
-            timestamps(current_sample+1:current_sample+info.nsamples(record)) = info.ts(record):info.ts(record)+info.nsamples(record)-1;
-            current_sample = current_sample + info.nsamples(record);
+        data = segRead_data('data', 'b').*info.header.bitVolts; % read in continuousdata
+        if nargout>1 % do not create timestamp arrays unless they are requested
+            timestamps = nan(size(data));
+            current_sample = 0;
+            for record = 1:length(info.ts)
+                timestamps(current_sample+1:current_sample+info.nsamples(record)) = info.ts(record):info.ts(record)+info.nsamples(record)-1;
+                current_sample = current_sample + info.nsamples(record);
+            end
         end
     case '.spikes'
         timestamps = segRead('timestamps')./info.header.sampleRate;
@@ -135,11 +139,25 @@ switch filetype
 end
 fclose(fid);
 
+function seg = segRead_data(segName, mf)
+    %% This function is specifically for reading continuous data. 
+    %  It keeps the data in int16 precision, which can drastically decrease
+    %  memory consumption
+    if nargin == 1, mf = 'l'; end
+    segNum = find(strcmp({dblock.Str},segName));
+    fseek(fid, sum(blockBytes(1:segNum-1))+NUM_HEADER_BYTES, 'bof'); 
+    seg = fread(fid, numIdx*dblock(segNum).Repeat, [sprintf('%d*%s', ...
+        dblock(segNum).Repeat,dblock(segNum).Types) '=>int16'], sum(blockBytes) - blockBytes(segNum), mf);
+    
+end
+
 function seg = segRead(segName, mf)
     if nargin == 1, mf = 'l'; end
     segNum = find(strcmp({dblock.Str},segName));
     fseek(fid, sum(blockBytes(1:segNum-1))+NUM_HEADER_BYTES, 'bof'); 
-    seg = fread(fid, numIdx*dblock(segNum).Repeat, sprintf('%d*%s', dblock(segNum).Repeat,dblock(segNum).Types), sum(blockBytes) - blockBytes(segNum), mf);
+    seg = fread(fid, numIdx*dblock(segNum).Repeat, sprintf('%d*%s', ...
+        dblock(segNum).Repeat,dblock(segNum).Types), sum(blockBytes) - blockBytes(segNum), mf);
+    
 end
 
 end
