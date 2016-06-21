@@ -22,16 +22,8 @@ import json
 from copy import deepcopy
 import re
 
-# constants
-NUM_HEADER_BYTES = 1024L
-SAMPLES_PER_RECORD = 1024L
-RECORD_SIZE = 8 + 16 + SAMPLES_PER_RECORD*2 + 10 # size of each continuous record in bytes
-RECORD_MARKER = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 255])
-
 # constants for pre-allocating matrices:
 MAX_NUMBER_OF_SPIKES = 1e6
-MAX_NUMBER_OF_RECORDS = 1e6
-MAX_NUMBER_OF_CONTINUOUS_SAMPLES = 1e8
 MAX_NUMBER_OF_EVENTS = 1e6
 
 def load(filepath):
@@ -76,23 +68,31 @@ def loadFolder(folderpath,**kwargs):
 def loadFolderToArray(folderpath, channels='all', dtype=float, 
     source='100', recording=None, start_record=None, stop_record=None,
     verbose=True):
-    '''Load CH continuous files in specified folder to a single numpy array. By default all 
-    CH continous files are loaded in numerical order, ordering can be specified with
-    optional channels argument which should be a list of channel numbers.
+    """Load the neural data files in a folder to a single array.
     
-    recording : int, or None
-        Multiple recordings in the same folder are suffixed with an
-        incrementing label. For the first or only recording, leave this as
-        None. Otherwise, specify an integer.
+    By default, all channels in the folder are loaded in numerical order.
     
-    start_record, stop_record : the first and last record to read from
-        each file. This is converted into an appropriate number of samples
-        and passed to loadContinuous. Python indexing is used, so stop_record
-        is not inclusive. If start_record is None, start at the beginning;
-        if stop_record is None, read to the end.
+    Args:
+        folderpath : string, path to folder containing OpenEphys files
+        channels : list of channel numbers to read
+            If 'all', then all channels are loaded in numerical order
+        dtype : float or np.int16
+            If float, then the data will be multiplied by bitVolts to convert
+            to microvolts. This increases the memory required by 4 times.
+        source :
+        recording : int, or None
+            Multiple recordings in the same folder are suffixed with an
+            incrementing label. For the first or only recording, leave this as
+            None. Otherwise, specify an integer.
+        start_record, stop_record : the first and last record to read from
+            each file. This is converted into an appropriate number of samples
+            and passed to loadContinuous. Python indexing is used, so 
+            `stop_record` is not inclusive. If `start_record` is None, 
+            start at the beginning; if `stop_record` is None, read to the end.
+        verbose : print status updateds
     
-    verbose : print debugging information
-    '''
+    Returns: numpy array of shape (n_samples, n_channels)
+    """
     # Get list of files
     filelist = get_filelist(folderpath, source, channels, recording=None)
 
@@ -449,31 +449,50 @@ def writeChannelMapFile(mapping, filename='mapping.prb'):
                       indent = 4, separators = (',', ': ') \
                  ) 
 
-def chunked_pack(folderpath, filename='openephys.dat', dref=None,
-    chunk_size=4000, start_record=None, stop_record=None, verbose=True):
+def pack(folderpath, filename='openephys.dat', dref=None,
+    chunk_size=4000, start_record=None, stop_record=None, verbose=True,
+    **kwargs):
     """Read OpenEphys formatted data in chunks and write to a flat binary file.
     
-    Reading in chunks means that it is not necessary to hold the entire
-    dataset in memory at once.
-
-    folderpath : string, path to folder containing all channels
-
-    dref:  Digital referencing - either supply a channel number or 'ave' to reference to the 
-           average of packed channels.
+    The data will be written in a fairly standard binary format:
+        ch0_sample0, ch1_sample0, ..., chN_sample0,
+        ch0_sample1, ch1_sample1, ..., chN_sample1,
+    and so on. Each sample is a 2-byte signed integer.
     
-    chunk_size : the number of records (not bytes or samples!) to read at
-        once. 4000 records of 64-channel data requires ~500 MB of memory.
+    Because the data are read from the OpenEphys files in chunks, it
+    is not necessary to hold the entire dataset in memory at once. It is
+    also possible to specify starting and stopping locations to write out
+    a subset of the data.
     
-    **kwargs : source, channels, recording, ignore_last_record
-        Passed to loadFolderToArray
+    Args:
+        folderpath : string, path to folder containing all channels
+        filename : name of file to store packed binary data
+            If this file exists, it will be overwritten
+        dref:  Digital referencing - either supply a channel number or 
+            'ave' to reference to the average of packed channels.
+        chunk_size : the number of records (not bytes or samples!) to read at
+            once. 4000 records of 64-channel data requires ~500 MB of memory.
+            The record size is usually 1024 samples.
+        start_record, stop_record : the first record to process and the
+            last record to process. If start_record is None, start at the
+            beginning; if stop_record is None, go until the end.
+        verbose : print out status info
+        **kwargs : This is passed to loadFolderToArray for each chunk.
+            See documentation there for the keywords `source`, `channels`,
+            `recording`, and `ignore_last_record`.
     """
     # Get header info to determine how many records we have to pack
-    header = get_header_from_folder(folderpath, source=source,
-        channels=channels, recording=recording)
+    header = get_header_from_folder(folderpath, **kwargs)
     if start_record is None:
         start_record = 0
     if stop_record is None:
         stop_record = header['n_records']
+    
+    # Manually remove the output file if it exists (later we append)
+    if os.path.exists(filename):
+        if verbose:
+            print "overwriting %s" % filename
+        os.remove(filename)
     
     # Iterate over chunks
     for chunk_start in range(start_record, stop_record, chunk_size):
