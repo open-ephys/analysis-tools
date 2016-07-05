@@ -25,6 +25,7 @@ Examples:
     
 """
 
+import glob
 import h5py
 import numpy as np
 
@@ -93,6 +94,54 @@ def load(filename, dataset=0):
     
     else:
         print('Supported files: .kwd, .kwe, .kwik, .kwx')
+
+
+def load_all_files(folder, dataset='all'):
+    """
+    Load kwd, kwe, kwik and/or kwx files in a folder.
+    
+    Returns:
+        Raw: dict containing info, timestamps and raw data from one or all 
+             datasets
+        
+        Events: dict containing messages and TTLs info
+        
+        Spks: dict containing spike info
+    """
+    FilesList = glob.glob(folder+'/*'); FilesList.sort()
+    Raw, Events, Spks, Files = {}, {}, {}, {}
+    
+    for File in FilesList:
+        if '.kwd' in File:
+            try:
+                Raw[File[-11:-8]] = load(File, dataset)
+                Files[File[-11:-8]+'_kwd'] = File
+            except OSError:
+                    print('File', File, "is corrupted :'(")            
+        
+        elif '.kwe' in File:
+            try:
+                Events = load(File)
+                Files['kwe'] = File
+            except OSError:
+                print('File ', File, " is corrupted :'(")
+            
+        elif '.kwik' in File:
+            try:
+                Events = load(File)
+                Files['kwik'] = File
+            except OSError:
+                print('File ', File, " is corrupted :'(")
+        
+        elif '.kwx' in File:
+            try:
+                Spks = load(File)
+                Files['kwx'] = File
+            except OSError:
+                print('File ', File, " is corrupted :'(")
+                Spks = []
+    
+    return(Raw, Events, Spks, Files)
 
 
 def convert(filename, filetype='dat', dataset=0):
