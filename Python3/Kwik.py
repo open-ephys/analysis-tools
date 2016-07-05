@@ -19,6 +19,10 @@ Examples:
     # load spikes and events
     Events = Kwik.load('experiment1.kwe')
     Spks = Kwik.load('experiment1.kwx')
+    
+    # load all files in a folder:
+    Raw, Events, Spks, Files = load_all_files(folder)
+    
 """
 
 import h5py
@@ -34,19 +38,32 @@ def load(filename, dataset=0):
             data['info'] = {Rec: f['recordings'][Rec].attrs 
                             for Rec in f['recordings'].keys()}
             
-            data['channel_bit_volts'] = {Rec: f['recordings'][Rec]\
-                                               ['application_data']\
-                                               ['channel_bit_volts']
-                                         for Rec in f['recordings'].keys()}
-            
             data['data'] = {Rec: f['recordings'][Rec]['data']
                             for Rec in f['recordings'].keys()}
+            
+            if 'channel_bit_volts' in f['recordings']['0']\
+                                       ['application_data'].keys():
+                data['channel_bit_volts'] = {Rec: f['recordings'][Rec]\
+                                                   ['application_data']\
+                                                   ['channel_bit_volts']
+                                             for Rec in f['recordings'].keys()}
+            else:
+                # Old OE versions do not have channel_bit_volts info.
+                # Assuming bit volt = 0.195 (Intan headstages). 
+                # Keep in mind that analog inputs have a different value!
+                # In out system it is 0.00015258789
+                data['channel_bit_volts'] = {Rec: [0.195]*len(
+                                                 data['data'][Rec][1, :]
+                                                             )
+                                             for Rec in f['recordings'].keys()}
+                
             
             data['timestamps'] = {Rec: ((
                                         np.arange(0,data['data'][Rec].shape[0])
                                         + data['info'][Rec]['start_time'])
                                        / data['info'][Rec]['sample_rate'])
                                        for Rec in f['recordings']}
+        
         else:
             data['info'] = f['recordings'][str(dataset)].attrs
             data['channel_bit_volts'] = f['recordings'][str(dataset)]\
