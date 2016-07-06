@@ -19,8 +19,13 @@ Examples:
     # load spikes and events
     Events = Kwik.load('experiment1.kwe')
     Spks = Kwik.load('experiment1.kwx')
+    
+    # load all files in a folder:
+    Raw, Events, Spks, Files = load_all_files(folder)
+    
 """
 
+import glob
 import h5py
 import numpy as np
 
@@ -34,19 +39,32 @@ def load(filename, dataset=0):
             data['info'] = {Rec: f['recordings'][Rec].attrs 
                             for Rec in f['recordings'].keys()}
             
-            data['channel_bit_volts'] = {Rec: f['recordings'][Rec]\
-                                               ['application_data']\
-                                               ['channel_bit_volts']
-                                         for Rec in f['recordings'].keys()}
-            
             data['data'] = {Rec: f['recordings'][Rec]['data']
                             for Rec in f['recordings'].keys()}
+            
+            if 'channel_bit_volts' in f['recordings']['0']\
+                                       ['application_data'].keys():
+                data['channel_bit_volts'] = {Rec: f['recordings'][Rec]\
+                                                   ['application_data']\
+                                                   ['channel_bit_volts']
+                                             for Rec in f['recordings'].keys()}
+            else:
+                # Old OE versions do not have channel_bit_volts info.
+                # Assuming bit volt = 0.195 (Intan headstages). 
+                # Keep in mind that analog inputs have a different value!
+                # In out system it is 0.00015258789
+                data['channel_bit_volts'] = {Rec: [0.195]*len(
+                                                 data['data'][Rec][1, :]
+                                                             )
+                                             for Rec in f['recordings'].keys()}
+                
             
             data['timestamps'] = {Rec: ((
                                         np.arange(0,data['data'][Rec].shape[0])
                                         + data['info'][Rec]['start_time'])
                                        / data['info'][Rec]['sample_rate'])
                                        for Rec in f['recordings']}
+        
         else:
             data['info'] = f['recordings'][str(dataset)].attrs
             data['channel_bit_volts'] = f['recordings'][str(dataset)]\
@@ -76,6 +94,54 @@ def load(filename, dataset=0):
     
     else:
         print('Supported files: .kwd, .kwe, .kwik, .kwx')
+
+
+def load_all_files(folder, dataset='all'):
+    """
+    Load kwd, kwe, kwik and/or kwx files in a folder.
+    
+    Returns:
+        Raw: dict containing info, timestamps and raw data from one or all 
+             datasets
+        
+        Events: dict containing messages and TTLs info
+        
+        Spks: dict containing spike info
+    """
+    FilesList = glob.glob(folder+'/*'); FilesList.sort()
+    Raw, Events, Spks, Files = {}, {}, {}, {}
+    
+    for File in FilesList:
+        if '.kwd' in File:
+            try:
+                Raw[File[-11:-8]] = load(File, dataset)
+                Files[File[-11:-8]+'_kwd'] = File
+            except OSError:
+                    print('File', File, "is corrupted :'(")            
+        
+        elif '.kwe' in File:
+            try:
+                Events = load(File)
+                Files['kwe'] = File
+            except OSError:
+                print('File ', File, " is corrupted :'(")
+            
+        elif '.kwik' in File:
+            try:
+                Events = load(File)
+                Files['kwik'] = File
+            except OSError:
+                print('File ', File, " is corrupted :'(")
+        
+        elif '.kwx' in File:
+            try:
+                Spks = load(File)
+                Files['kwx'] = File
+            except OSError:
+                print('File ', File, " is corrupted :'(")
+                Spks = []
+    
+    return(Raw, Events, Spks, Files)
 
 
 def convert(filename, filetype='dat', dataset=0):
