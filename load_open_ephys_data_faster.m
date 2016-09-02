@@ -1,17 +1,22 @@
-function [data, timestamps, info] = load_open_ephys_data_faster(filename)
+function [data, timestamps, info] = load_open_ephys_data_faster(filename, varargin)
 %
-% [data, timestamps, info] = load_open_ephys_data(filename)
+% [data, timestamps, info] = load_open_ephys_data(filename, [outputFormat])
 %
 %   Loads continuous, event, or spike data files into Matlab.
 %
 %   Inputs:
 %
 %     filename: path to file
+%     outputFormat: (optional) If omitted, continuous data is output in double format and is scaled to reflect microvolts. 
+%                   If this argument is 'unscaledInt16' and the file contains continuous data, the output data will be in
+%                   int16 format and will not be scaled; this data must be manually converted to a floating-point format
+%                   and multiplied by info.header.bitVolts to obtain microvolt values. This feature is intended to save memory
+%                   for operations involving large amounts of data.
 %
 %
 %   Outputs:
 %
-%     data: either an array continuous samples (in microvolts),
+%     data: either an array continuous samples (in microvolts unless outputFormat is specified, see above),
 %           a matrix of spike waveforms (in microvolts),
 %           or an array of event channels (integers)
 %
@@ -53,6 +58,17 @@ function [data, timestamps, info] = load_open_ephys_data_faster(filename)
 [~,~,filetype] = fileparts(filename);
 if ~any(strcmp(filetype,{'.events','.continuous','.spikes'}))
     error('File extension not recognized. Please use a ''.continuous'', ''.spikes'', or ''.events'' file.');
+end
+
+bInt16Out = false;
+if nargin > 2
+    error('Too many input arguments.');
+elseif nargin == 2
+    if strcmpi(varargin{1}, 'unscaledInt16')
+        bInt16Out = true;
+    else
+        error('Unrecognized output format.');
+    end
 end
 
 fid = fopen(filename);
@@ -117,7 +133,14 @@ switch filetype
         info.nsamples = segRead('nsamples');
         if ~all(info.nsamples == SAMPLES_PER_RECORD)&& version >= 0.1, error('Found corrupted record'); end
         if version >= 0.2, info.recNum = segRead('recNum'); end
-        data = segRead_data('data', 'b').*info.header.bitVolts; % read in continuousdata
+        
+        % read in continuous data
+        if bInt16Out
+            data = segRead_int16('data', 'b');
+        else
+            data = segRead('data', 'b') .* info.header.bitVolts;
+        end
+        
         if nargout>1 % do not create timestamp arrays unless they are requested
             timestamps = nan(size(data));
             current_sample = 0;
@@ -139,7 +162,7 @@ switch filetype
 end
 fclose(fid);
 
-function seg = segRead_data(segName, mf)
+function seg = segRead_int16(segName, mf)
     %% This function is specifically for reading continuous data. 
     %  It keeps the data in int16 precision, which can drastically decrease
     %  memory consumption
