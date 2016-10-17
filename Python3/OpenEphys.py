@@ -27,10 +27,10 @@ RECORD_SIZE = 8 + 16 + SAMPLES_PER_RECORD*2 + 10 # size of each continuous recor
 RECORD_MARKER = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 255])
 
 # constants for pre-allocating matrices:
-MAX_NUMBER_OF_SPIKES = 1e6
-MAX_NUMBER_OF_RECORDS = 1e6
-MAX_NUMBER_OF_CONTINUOUS_SAMPLES = 1e8
-MAX_NUMBER_OF_EVENTS = 1e6
+MAX_NUMBER_OF_SPIKES = int(1e6)
+MAX_NUMBER_OF_RECORDS = int(1e6)
+MAX_NUMBER_OF_CONTINUOUS_SAMPLES = int(1e8)
+MAX_NUMBER_OF_EVENTS = int(1e6)
 
 def load(filepath):
     
@@ -144,7 +144,7 @@ def loadContinuous(filepath, dtype = float):
         recordNumber += 1        
         
         timestamps[recordNumber] = np.fromfile(f,np.dtype('<i8'),1) # little-endian 64-bit signed integer 
-        N = np.fromfile(f,np.dtype('<u2'),1) # little-endian 16-bit unsigned integer
+        N = np.fromfile(f,np.dtype('<u2'),1)[0] # little-endian 16-bit unsigned integer
         
         #print index
 
