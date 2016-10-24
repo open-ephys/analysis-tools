@@ -340,7 +340,7 @@ def loadEvents(filepath):
     f = open(filepath,'rb')
     header = readHeader(f)
     
-    if float(header[' version']) < 0.4:
+    if float(header['version']) < 0.4:
         raise Exception('Loader is only compatible with .events files with version 0.4 or higher')
      
     data['header'] = header 
