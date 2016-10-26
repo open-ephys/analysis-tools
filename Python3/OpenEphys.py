@@ -219,7 +219,7 @@ def loadSpikes(filepath):
         sampleFreq = np.fromfile(f, np.dtype('<u2'),1)
         
         waveforms = np.fromfile(f, np.dtype('<u2'), numChannels*numSamples)
-        wv = np.reshape(waveforms, (numSamples, numChannels))
+        wv = np.reshape(waveforms, (numChannels, numSamples))
         
         gain[currentSpike,:] = np.fromfile(f, np.float32, numChannels)
         thresh[currentSpike,:] = np.fromfile(f, np.dtype('<u2'), numChannels)
@@ -229,7 +229,7 @@ def loadSpikes(filepath):
         #print wv.shape        
         
         for ch in range(numChannels):
-            spikes[currentSpike,:,ch] = (np.float64(wv[:,ch])-32768)/(gain[currentSpike,ch]/1000)
+            spikes[currentSpike,:,ch] = (np.float64(wv[ch])-32768)/(gain[currentSpike,ch]/1000)
         
         currentSpike += 1
         
