@@ -176,7 +176,7 @@ def loadContinuous(filepath, dtype = float):
     f.close()
     return ch
 
-def loadSpikesOld(filepath):
+def loadSpikes(filepath):
     
     # doesn't quite work...spikes are transposed in a weird way    
     
@@ -244,7 +244,7 @@ def loadSpikesOld(filepath):
 
     return data
 
-def loadSpikes(filepath):
+def loadSpikesFast(filepath):
     
         data = { }
         
