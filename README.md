@@ -3,9 +3,7 @@ analysis-tools
 
 Code for loading and converting data saved by the Open Ephys GUI
 
-More info on the Open Ephys data format can be found at https://open-ephys.atlassian.net/wiki/display/OEW/Data+format
-
-More info on the Kwik data format (implemented in the GUI as of October 2014) can be found at https://github.com/klusta-team/kwiklib/wiki/Kwik-format
+More info on the data formats used by Open Ephys can be found at https://open-ephys.atlassian.net/wiki/display/OEW/Data+format
 
 For Matlab:
 - use 'load_open_ephys_data.m' for .continuous, .spikes, and .events files
@@ -13,6 +11,9 @@ For Matlab:
 For Python:
 - use the 'OpenEphys.py' module for .continuous files, .spikes, and .events files
 - use the 'Kwik.py' module for .kwd files
+
+For Julia:
+- check out this repository: https://github.com/galenlynch/OpenEphysLoader.jl
 
 For MClust:
 - use the 'LoadTT_openephys.m' loading engine
