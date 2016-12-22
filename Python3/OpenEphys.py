@@ -2,7 +2,7 @@
 """
 Created on Sun Aug  3 15:18:38 2014
 
-@author: Dan Denman and Josh Siegle
+@author: Dan Denman and Josh Siegle. Speedups from Jon Newman.
 
 Loads .continuous, .events, and .spikes files saved from the Open Ephys GUI
 
@@ -17,6 +17,7 @@ import numpy as np
 import scipy.signal
 import scipy.io
 import time
+import math
 import struct
 from copy import deepcopy
 
@@ -174,7 +175,7 @@ def loadContinuous(filepath, dtype = float):
     ch['recordingNumber'] = recordingNumbers[0:recordNumber]
     f.close()
     return ch
-    
+
 def loadSpikes(filepath):
     
     # doesn't quite work...spikes are transposed in a weird way    
@@ -242,6 +243,52 @@ def loadSpikes(filepath):
     data['sortedId'] = sortedId[:currentSpike]
 
     return data
+
+def loadSpikesFast(filepath):
+    
+        data = { }
+        
+        f = open(filepath,'rb')
+        header = readHeader(f)
+        
+        if float(header[' version']) < 0.4:
+            raise Exception('Loader is only compatible with .spikes files with version 0.4 or higher')
+         
+        data['header'] = header 
+        numChannels = int(header['num_channels'])
+        numSamples = 40 # **NOT CURRENTLY WRITTEN TO HEADER**
+
+        # Record schema
+        dt = [('type', '<u1'),
+              ('timestamp', '<i8'),
+              ('softtime', '<i8'),
+              ('source', '<u2'),
+              ('numchan', '<u2'),
+              ('numsamp', '<u2'),
+              ('sortid', '<u2'),
+              ('electrodeid', '<u2'),
+              ('channel', '<u2'),
+              ('color', '<u1',(3)), # The color of a spike...
+              ('pcproj', np.float32 ,(2)),
+              ('sampfreq', '<u2'),
+              ('waveform', '<u2', (numChannels, numSamples)),
+              ('gain', np.float32, (numChannels)),
+              ('thresh', '<u2', (numChannels)),
+              ('recordnum', '<u2')]
+
+        record_type = np.dtype(dt); 
+        record_bytes = record_type.itemsize
+        bytes_left = os.fstat(f.fileno()).st_size - f.tell()
+        records_to_read = math.floor(bytes_left/record_bytes)
+
+        if records_to_read > MAX_NUMBER_OF_SPIKES:
+            print("Warning: only loading {} spikes".format(MAX_NUMBER_OF_SPIKES))
+            records_to_read = MAX_NUMBER_OF_SPIKES
+
+        data['data'] = np.zeros(records_to_read, dtype=record_type)
+        data['data'] = np.fromfile(f, record_type, records_to_read)
+
+        return data
     
 def loadEvents(filepath):
 
