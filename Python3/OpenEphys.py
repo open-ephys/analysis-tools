@@ -111,20 +111,6 @@ def loadContinuous(filepath, dtype = float):
 
     ch = { }
 
-#    f = open(filepath,'rb')
-#    header = readHeader(f)
-
-    ##preallocate the data array
-#    while f.tell() < os.fstat(f.fileno()).st_size:
-#        newSampleNumber = np.fromfile(f,np.dtype('<i8'),1)
-#        N = np.fromfile(f,np.dtype('<u2'),1);
-#        recordingNumber = np.fromfile(f,np.dtype('>u2'),1)
-#        data = np.fromfile(f,np.dtype('>i2'),N)
-#        marker = f.read(10)
-#        totalN = totalN+1
-
-#    f.close
-
     #read in the data
     f = open(filepath,'rb')
 
@@ -143,9 +129,6 @@ def loadContinuous(filepath, dtype = float):
     indices = np.arange(0, nsamp + 1, SAMPLES_PER_RECORD, np.dtype(np.int64))
 
     header = readHeader(f)
-
-    #print fileLength
-    #print f.tell()
 
     recIndices = np.arange(0, nrec)
 
