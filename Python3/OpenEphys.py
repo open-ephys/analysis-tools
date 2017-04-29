@@ -23,7 +23,8 @@ from copy import deepcopy
 # constants
 NUM_HEADER_BYTES = 1024
 SAMPLES_PER_RECORD = 1024
-RECORD_SIZE = 8 + 16 + SAMPLES_PER_RECORD*2 + 10 # size of each continuous record in bytes
+BYTES_PER_SAMPLE = 2
+RECORD_SIZE = 4 + 8 + SAMPLES_PER_RECORD * BYTES_PER_SAMPLE + 10 # size of each continuous record in bytes
 RECORD_MARKER = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 255])
 
 # constants for pre-allocating matrices:
@@ -109,7 +110,6 @@ def loadContinuous(filepath, dtype = float):
     print("Loading continuous data...")
 
     ch = { }
-    recordNumber = np.intp(-1)
 
 #    f = open(filepath,'rb')
 #    header = readHeader(f)
@@ -124,24 +124,32 @@ def loadContinuous(filepath, dtype = float):
 #        totalN = totalN+1
 
 #    f.close
-    # pre-allocate samples
-    samples = np.zeros(MAX_NUMBER_OF_CONTINUOUS_SAMPLES, dtype)
-    timestamps = np.zeros(MAX_NUMBER_OF_RECORDS)
-    recordingNumbers = np.zeros(MAX_NUMBER_OF_RECORDS)
-    indices = np.arange(0,MAX_NUMBER_OF_RECORDS*SAMPLES_PER_RECORD, SAMPLES_PER_RECORD, np.dtype(np.int64))
 
     #read in the data
     f = open(filepath,'rb')
 
+    fileLength = os.fstat(f.fileno()).st_size
+
+    # calculate number of samples
+    recordBytes = fileLength - NUM_HEADER_BYTES
+    if  recordBytes % RECORD_SIZE != 0:
+        raise Exception("File size is not consistent with a continuous file: may be corrupt")
+    nrec = recordBytes // RECORD_SIZE
+    nsamp = nrec * SAMPLES_PER_RECORD
+    # pre-allocate samples
+    samples = np.zeros(nsamp, dtype)
+    timestamps = np.zeros(nrec)
+    recordingNumbers = np.zeros(nrec)
+    indices = np.arange(0, nsamp + 1, SAMPLES_PER_RECORD, np.dtype(np.int64))
+
     header = readHeader(f)
 
-    fileLength = os.fstat(f.fileno()).st_size
     #print fileLength
     #print f.tell()
 
-    while f.tell() < fileLength:
+    recIndices = np.arange(0, nrec)
 
-        recordNumber += 1
+    for recordNumber in recIndices:
 
         timestamps[recordNumber] = np.fromfile(f,np.dtype('<i8'),1) # little-endian 64-bit signed integer
         N = np.fromfile(f,np.dtype('<u2'),1)[0] # little-endian 16-bit unsigned integer
@@ -160,7 +168,6 @@ def loadContinuous(filepath, dtype = float):
         try:
             samples[indices[recordNumber]:indices[recordNumber+1]] = data
         except ValueError:
-            print(type(index))
             raise
 
         marker = f.read(10) # dump
@@ -169,9 +176,9 @@ def loadContinuous(filepath, dtype = float):
     #print index
 
     ch['header'] = header
-    ch['timestamps'] = timestamps[0:recordNumber]
-    ch['data'] = samples[0:indices[recordNumber]]  # OR use downsample(samples,1), to save space
-    ch['recordingNumber'] = recordingNumbers[0:recordNumber]
+    ch['timestamps'] = timestamps
+    ch['data'] = samples  # OR use downsample(samples,1), to save space
+    ch['recordingNumber'] = recordingNumbers
     f.close()
     return ch
 
