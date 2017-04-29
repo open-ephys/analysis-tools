@@ -148,10 +148,7 @@ def loadContinuous(filepath, dtype = float):
             data = np.fromfile(f,np.dtype('>i2'),N) * float(header['bitVolts']) # big-endian 16-bit signed integer, multiplied by bitVolts
         else:  # Keep data in signed 16 bit integer format.
             data = np.fromfile(f,np.dtype('>i2'),N)  # big-endian 16-bit signed integer
-        try:
-            samples[indices[recordNumber]:indices[recordNumber+1]] = data
-        except ValueError:
-            raise
+        samples[indices[recordNumber]:indices[recordNumber+1]] = data
 
         marker = f.read(10) # dump
 
