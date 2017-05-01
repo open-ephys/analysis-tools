@@ -23,17 +23,17 @@ from copy import deepcopy
 # constants
 NUM_HEADER_BYTES = 1024
 SAMPLES_PER_RECORD = 1024
-RECORD_SIZE = 8 + 16 + SAMPLES_PER_RECORD*2 + 10 # size of each continuous record in bytes
+BYTES_PER_SAMPLE = 2
+RECORD_SIZE = 4 + 8 + SAMPLES_PER_RECORD * BYTES_PER_SAMPLE + 10 # size of each continuous record in bytes
 RECORD_MARKER = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 255])
 
 # constants for pre-allocating matrices:
 MAX_NUMBER_OF_SPIKES = int(1e6)
 MAX_NUMBER_OF_RECORDS = int(1e6)
-MAX_NUMBER_OF_CONTINUOUS_SAMPLES = int(1e8)
 MAX_NUMBER_OF_EVENTS = int(1e6)
 
 def load(filepath):
-    
+
     # redirects to code for individual file types
     if 'continuous' in filepath:
         data = loadContinuous(filepath)
@@ -43,24 +43,24 @@ def load(filepath):
         data = loadEvents(filepath)
     else:
         raise Exception("Not a recognized file type. Please input a .continuous, .spikes, or .events file")
-        
+
     return data
 
 def loadFolder(folderpath,**kwargs):
 
-    # load all continuous files in a folder  
-    
-    data = { }    
-    
-    # load all continuous files in a folder  
+    # load all continuous files in a folder
+
+    data = { }
+
+    # load all continuous files in a folder
     if 'channels' in kwargs.keys():
         filelist = ['100_CH'+x+'.continuous' for x in map(str,kwargs['channels'])]
     else:
-        filelist = os.listdir(folderpath)   
+        filelist = os.listdir(folderpath)
 
     t0 = time.time()
     numFiles = 0
-    
+
     for i, f in enumerate(filelist):
         if '.continuous' in f:
             data[f.replace('.continuous','')] = loadContinuous(os.path.join(folderpath, f))
@@ -68,15 +68,15 @@ def loadFolder(folderpath,**kwargs):
 
     print(''.join(('Avg. Load Time: ', str((time.time() - t0)/numFiles),' sec')))
     print(''.join(('Total Load Time: ', str((time.time() - t0)),' sec')))
-            
+
     return data
 
 def loadFolderToArray(folderpath, channels = 'all', dtype = float, source = '100'):
-    '''Load CH continuous files in specified folder to a single numpy array. By default all 
+    '''Load CH continuous files in specified folder to a single numpy array. By default all
     CH continous files are loaded in numerical order, ordering can be specified with
     optional channels argument which should be a list of channel numbers.'''
 
-    if channels == 'all': 
+    if channels == 'all':
         channels = _get_sorted_channels(folderpath)
 
     filelist = [source + '_CH' + x + '.continuous' for x in map(str,channels)]
@@ -98,7 +98,7 @@ def loadFolderToArray(folderpath, channels = 'all', dtype = float, source = '100
 
     print(''.join(('Avg. Load Time: ', str((time.time() - t0)/numFiles),' sec')))
     print(''.join(('Total Load Time: ', str((time.time() - t0)),' sec')))
-            
+
     return data_array
 
 def loadContinuous(filepath, dtype = float):
@@ -109,90 +109,76 @@ def loadContinuous(filepath, dtype = float):
     print("Loading continuous data...")
 
     ch = { }
-    recordNumber = np.intp(-1)
-    
-#    f = open(filepath,'rb')
-#    header = readHeader(f)
-    
-    ##preallocate the data array
-#    while f.tell() < os.fstat(f.fileno()).st_size:
-#        newSampleNumber = np.fromfile(f,np.dtype('<i8'),1)
-#        N = np.fromfile(f,np.dtype('<u2'),1);        
-#        recordingNumber = np.fromfile(f,np.dtype('>u2'),1) 
-#        data = np.fromfile(f,np.dtype('>i2'),N)
-#        marker = f.read(10)
-#        totalN = totalN+1
-        
-#    f.close
-    # pre-allocate samples
-    samples = np.zeros(MAX_NUMBER_OF_CONTINUOUS_SAMPLES, dtype)
-    timestamps = np.zeros(MAX_NUMBER_OF_RECORDS)
-    recordingNumbers = np.zeros(MAX_NUMBER_OF_RECORDS)
-    indices = np.arange(0,MAX_NUMBER_OF_RECORDS*SAMPLES_PER_RECORD, SAMPLES_PER_RECORD, np.dtype(np.int64))
-    
+
     #read in the data
     f = open(filepath,'rb')
-    
-    header = readHeader(f)
-    
+
     fileLength = os.fstat(f.fileno()).st_size
-    #print fileLength
-    #print f.tell()
-    
-    while f.tell() < fileLength:
-        
-        recordNumber += 1        
-        
-        timestamps[recordNumber] = np.fromfile(f,np.dtype('<i8'),1) # little-endian 64-bit signed integer 
+
+    # calculate number of samples
+    recordBytes = fileLength - NUM_HEADER_BYTES
+    if  recordBytes % RECORD_SIZE != 0:
+        raise Exception("File size is not consistent with a continuous file: may be corrupt")
+    nrec = recordBytes // RECORD_SIZE
+    nsamp = nrec * SAMPLES_PER_RECORD
+    # pre-allocate samples
+    samples = np.zeros(nsamp, dtype)
+    timestamps = np.zeros(nrec)
+    recordingNumbers = np.zeros(nrec)
+    indices = np.arange(0, nsamp + 1, SAMPLES_PER_RECORD, np.dtype(np.int64))
+
+    header = readHeader(f)
+
+    recIndices = np.arange(0, nrec)
+
+    for recordNumber in recIndices:
+
+        timestamps[recordNumber] = np.fromfile(f,np.dtype('<i8'),1) # little-endian 64-bit signed integer
         N = np.fromfile(f,np.dtype('<u2'),1)[0] # little-endian 16-bit unsigned integer
-        
+
         #print index
 
         if N != SAMPLES_PER_RECORD:
             raise Exception('Found corrupted record in block ' + str(recordNumber))
-        
+
         recordingNumbers[recordNumber] = (np.fromfile(f,np.dtype('>u2'),1)) # big-endian 16-bit unsigned integer
-        
+
         if dtype == float: # Convert data to float array and convert bits to voltage.
-            data = np.fromfile(f,np.dtype('>i2'),N) * float(header['bitVolts']) # big-endian 16-bit signed integer, multiplied by bitVolts   
+            data = np.fromfile(f,np.dtype('>i2'),N) * float(header['bitVolts']) # big-endian 16-bit signed integer, multiplied by bitVolts
         else:  # Keep data in signed 16 bit integer format.
             data = np.fromfile(f,np.dtype('>i2'),N)  # big-endian 16-bit signed integer
-        try:
-            samples[indices[recordNumber]:indices[recordNumber+1]] = data            
-        except ValueError:
-            print(type(index))
-            raise
-        
+        samples[indices[recordNumber]:indices[recordNumber+1]] = data
+
         marker = f.read(10) # dump
-        
+
     #print recordNumber
     #print index
-        
-    ch['header'] = header 
-    ch['timestamps'] = timestamps[0:recordNumber]
-    ch['data'] = samples[0:indices[recordNumber]]  # OR use downsample(samples,1), to save space
-    ch['recordingNumber'] = recordingNumbers[0:recordNumber]
+
+    ch['header'] = header
+    ch['timestamps'] = timestamps
+    ch['data'] = samples  # OR use downsample(samples,1), to save space
+    ch['recordingNumber'] = recordingNumbers
     f.close()
     return ch
-    
+
 def loadSpikes(filepath):
-    
-    # doesn't quite work...spikes are transposed in a weird way    
-    
+
+    # doesn't quite work...spikes are transposed in a weird way
+
     data = { }
-    
+
     print('loading spikes...')
-    
+
     f = open(filepath,'rb')
     header = readHeader(f)
-    
+
     if float(header[' version']) < 0.4:
         raise Exception('Loader is only compatible with .spikes files with version 0.4 or higher')
-     
-    data['header'] = header 
+
+    data['header'] = header
     numChannels = int(header['num_channels'])
     numSamples = 40 # **NOT CURRENTLY WRITTEN TO HEADER**
-    
+
     spikes = np.zeros((MAX_NUMBER_OF_SPIKES, numSamples, numChannels))
     timestamps = np.zeros(MAX_NUMBER_OF_SPIKES)
     source = np.zeros(MAX_NUMBER_OF_SPIKES)
@@ -200,11 +186,11 @@ def loadSpikes(filepath):
     thresh = np.zeros((MAX_NUMBER_OF_SPIKES, numChannels))
     sortedId = np.zeros((MAX_NUMBER_OF_SPIKES, numChannels))
     recNum = np.zeros(MAX_NUMBER_OF_SPIKES)
-    
+
     currentSpike = 0
-    
+
     while f.tell() < os.fstat(f.fileno()).st_size:
-        
+
         eventType = np.fromfile(f, np.dtype('<u1'),1) #always equal to 4, discard
         timestamps[currentSpike] = np.fromfile(f, np.dtype('<i8'), 1)
         software_timestamp = np.fromfile(f, np.dtype('<i8'), 1)
@@ -217,22 +203,22 @@ def loadSpikes(filepath):
         color = np.fromfile(f, np.dtype('<u1'), 3)
         pcProj = np.fromfile(f, np.float32, 2)
         sampleFreq = np.fromfile(f, np.dtype('<u2'),1)
-        
+
         waveforms = np.fromfile(f, np.dtype('<u2'), numChannels*numSamples)
         wv = np.reshape(waveforms, (numSamples, numChannels))
-        
+
         gain[currentSpike,:] = np.fromfile(f, np.float32, numChannels)
         thresh[currentSpike,:] = np.fromfile(f, np.dtype('<u2'), numChannels)
-        
+
         recNum[currentSpike] = np.fromfile(f, np.dtype('<u2'), 1)
 
-        #print wv.shape        
-        
+        #print wv.shape
+
         for ch in range(numChannels):
             spikes[currentSpike,:,ch] = (np.float64(wv[:,ch])-32768)/(gain[currentSpike,ch]/1000)
-        
+
         currentSpike += 1
-        
+
     data['spikes'] = spikes[:currentSpike,:,:]
     data['timestamps'] = timestamps[:currentSpike]
     data['source'] = source[:currentSpike]
@@ -242,21 +228,21 @@ def loadSpikes(filepath):
     data['sortedId'] = sortedId[:currentSpike]
 
     return data
-    
+
 def loadEvents(filepath):
 
     data = { }
-    
+
     print('loading events...')
-    
+
     f = open(filepath,'rb')
     header = readHeader(f)
-    
+
     if float(header[' version']) < 0.4:
         raise Exception('Loader is only compatible with .events files with version 0.4 or higher')
-     
-    data['header'] = header 
-    
+
+    data['header'] = header
+
     index = -1
 
     channel = np.zeros(MAX_NUMBER_OF_EVENTS)
@@ -268,9 +254,9 @@ def loadEvents(filepath):
     recordingNumber = np.zeros(MAX_NUMBER_OF_EVENTS)
 
     while f.tell() < os.fstat(f.fileno()).st_size:
-        
+
         index += 1
-        
+
         timestamps[index] = np.fromfile(f, np.dtype('<i8'), 1)
         sampleNum[index] = np.fromfile(f, np.dtype('<i2'), 1)
         eventType[index] = np.fromfile(f, np.dtype('<u1'), 1)
@@ -278,7 +264,7 @@ def loadEvents(filepath):
         eventId[index] = np.fromfile(f, np.dtype('<u1'), 1)
         channel[index] = np.fromfile(f, np.dtype('<u1'), 1)
         recordingNumber[index] = np.fromfile(f, np.dtype('<u2'), 1)
-        
+
     data['channel'] = channel[:index]
     data['timestamps'] = timestamps[:index]
     data['eventType'] = eventType[:index]
@@ -286,9 +272,9 @@ def loadEvents(filepath):
     data['eventId'] = eventId[:index]
     data['recordingNumber'] = recordingNumber[:index]
     data['sampleNum'] = sampleNum[:index]
-    
+
     return data
-    
+
 def readHeader(f):
     header = { }
     h = f.read(1024).decode().replace('\n','').replace('header.','')
@@ -296,19 +282,19 @@ def readHeader(f):
         if '=' in item:
             header[item.split(' = ')[0]] = item.split(' = ')[1]
     return header
-    
+
 def downsample(trace,down):
     downsampled = scipy.signal.resample(trace,np.shape(trace)[0]/down)
     return downsampled
-    
-def pack(folderpath,source='100',**kwargs):  
+
+def pack(folderpath,source='100',**kwargs):
 #convert single channel open ephys channels to a .dat file for compatibility with the KlustaSuite, Neuroscope and Klusters
-#should not be necessary for versions of open ephys which write data into HDF5 format.  
+#should not be necessary for versions of open ephys which write data into HDF5 format.
 #loads .continuous files in the specified folder and saves a .DAT in that folder
 #optional arguments:
 #   source: string name of the source that openephys uses as the prefix. is usually 100, if the headstage is the first source added, but can specify something different
 #
-#   data: pre-loaded data to be packed into a .DAT 
+#   data: pre-loaded data to be packed into a .DAT
 #   dref: int specifying a channel # to use as a digital reference. is subtracted from all channels.
 #   order: the order in which the .continuos files are packed into the .DAT. should be a list of .continious channel numbers. length must equal total channels.
 #   suffix: appended to .DAT filename, which is openephys.DAT if no suffix provided.
@@ -317,7 +303,7 @@ def pack(folderpath,source='100',**kwargs):
     if 'data' not in kwargs.keys():
         if 'channels' not in kwargs.keys():
             data = loadFolder(folderpath)
-        else:   
+        else:
             data = loadFolder(folderpath,channels=kwargs['channels'])
     else:
         data = kwargs['data']
@@ -325,13 +311,13 @@ def pack(folderpath,source='100',**kwargs):
     if 'dref' in kwargs.keys():
         ref =load(os.path.join(folderpath,''.join((source,'_CH',str(kwargs['dref']),'.continuous'))))
         for i,channel in enumerate(data.keys()):
-            data[channel]['data'] = data[channel]['data'] - ref['data']   
+            data[channel]['data'] = data[channel]['data'] - ref['data']
     #specify the order the channels are written in
     if 'order' in kwargs.keys():
         order = kwargs['order']
     else:
-        order = data.keys()                         
-    #add a suffix, if one was specified        
+        order = data.keys()
+    #add a suffix, if one was specified
     if 'suffix' in kwargs.keys():
         suffix=kwargs['suffix']
     else:
@@ -340,7 +326,7 @@ def pack(folderpath,source='100',**kwargs):
     #make a file to write the data back out into .dat format
     outpath = os.path.join(folderpath,''.join(('openephys',suffix,'.dat')))
     out = open(outpath,'wb')
-    
+
     #go through the data and write it out in the .dat format
     #.dat format specified here: http://neuroscope.sourceforge.net/UserManual/data-files.html
     channelOrder = []
@@ -350,7 +336,7 @@ def pack(folderpath,source='100',**kwargs):
         for j in range(len(order)):
             if source in data.keys()[0]:
                 ch = data[order[j]]['data']
-            else:        
+            else:
                 ch = data[''.join(('CH',str(order[j]).replace('CH','')))]['data']
             out.write(struct.pack('h',ch[i]))#signed 16-bit integer
             #figure out which order this thing packed the channels in. only do this once.
@@ -361,10 +347,10 @@ def pack(folderpath,source='100',**kwargs):
             bar.animate(i)
             #bar.update(float(i+1)/float(len(data[data.keys()[0]])))
     #bar.finish()
-    out.close()      
+    out.close()
     print(''.join(('order: ',str(channelOrder))))
     print(''.join(('.dat saved to ',outpath)))
-    
+
 #**********************************************************
 # progress bar class used to show progress of pack()
     #stolen from some post on stack overflow
@@ -414,27 +400,27 @@ def pack_2(folderpath, filename = 'openephys.dat', source='100', channels = 'all
     '''Alternative version of pack which uses numpy's tofile function to write data.
     pack_2 is much faster than pack and avoids quantization noise incurred in pack due
     to conversion of data to float voltages during loadContinous followed by rounding
-    back to integers for packing.  
+    back to integers for packing.
 
-    source: string name of the source that openephys uses as the prefix. It is usually 100, 
+    source: string name of the source that openephys uses as the prefix. It is usually 100,
             if the headstage is the first source added, but can specify something different.
 
     channels:  List of channel numbers specifying order in which channels are packed. By default
                all CH continous files are packed in numerical order.
 
-    dref:  Digital referencing - either supply a channel number or 'ave' to reference to the 
+    dref:  Digital referencing - either supply a channel number or 'ave' to reference to the
            average of packed channels.
     '''
 
     data_array = loadFolderToArray(folderpath, channels, np.int16, source)
 
-    if dref: 
+    if dref:
         if dref == 'ave':
             print('Digital referencing to average of all channels.')
             reference = np.mean(data_array,1)
         else:
             print('Digital referencing to channel ' + str(dref))
-            if channels == 'all': 
+            if channels == 'all':
                 channels = _get_sorted_channels(folderpath)
             reference = deepcopy(data_array[:,channels.index(dref)])
         for i in range(data_array.shape[1]):
@@ -444,5 +430,5 @@ def pack_2(folderpath, filename = 'openephys.dat', source='100', channels = 'all
     data_array.tofile(os.path.join(folderpath,filename))
 
 def _get_sorted_channels(folderpath):
-    return sorted([int(f.split('_CH')[1].split('.')[0]) for f in os.listdir(folderpath) 
-                    if '.continuous' in f and '_CH' in f]) 
+    return sorted([int(f.split('_CH')[1].split('.')[0]) for f in os.listdir(folderpath)
+                    if '.continuous' in f and '_CH' in f])
