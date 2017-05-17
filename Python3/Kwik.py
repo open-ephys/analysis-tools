@@ -42,7 +42,8 @@ def load(filename, dataset=0):
             data['data'] = {Rec: f['recordings'][Rec]['data']
                             for Rec in f['recordings'].keys()}
             
-            if 'channel_bit_volts' in f['recordings']['0']\
+            R = list(f['recordings'])[0]
+            if 'channel_bit_volts' in f['recordings'][R]\
                                        ['application_data'].keys():
                 data['channel_bit_volts'] = {Rec: f['recordings'][Rec]\
                                                    ['application_data']\
