@@ -15,7 +15,10 @@ Examples:
     # AllInfo will be a dictionary following the same structure of the XML file.
     
     # To get info only about channels recorded:
-    RecChs = SettingsXML.GetRecChs(File)
+    RecChs = SettingsXML.GetRecChs(File)[0]
+    
+    # To get also the processor names:
+    RecChs, PluginNames = SettingsXML.GetRecChs(File)
     
     # RecChs will be a dictionary:
     # 
@@ -70,7 +73,7 @@ def XML2Dict(File):
 
 def GetRecChs(File):
     Info = XML2Dict(File)
-    RecChs = {}
+    RecChs = {}; ProcNames = {}
     
     for P, Proc in Info['SIGNALCHAIN']['PROCESSOR'].items():
         if 'CHANNEL_INFO' not in Proc: continue
@@ -82,7 +85,7 @@ def GetRecChs(File):
                 if Proc['NodeId'] not in RecChs: RecChs[Proc['NodeId']] = {}
                 RecChs[Proc['NodeId']][ChNo] = Ch['CHANNEL']
         
-        RecChs[Proc['NodeId']]['PluginName'] = Proc['pluginName']
+        ProcNames[Proc['NodeId']] = Proc['pluginName']
     
-    return(RecChs)
+    return(RecChs, ProcNames)
 
