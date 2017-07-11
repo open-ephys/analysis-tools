@@ -81,11 +81,14 @@ def GetRecChs(File):
         for C, Ch in Proc['CHANNEL_INFO']['CHANNEL'].items():
             ChNo = Ch['CHANNEL']['number']
             Rec = Proc['CHANNEL'][ChNo]['SELECTIONSTATE']['SELECTIONSTATE']['record']
-            if Rec:
+            if Rec == '1':
                 if Proc['NodeId'] not in RecChs: RecChs[Proc['NodeId']] = {}
                 RecChs[Proc['NodeId']][ChNo] = Ch['CHANNEL']
         
-        ProcNames[Proc['NodeId']] = Proc['pluginName']
+        if 'pluginName' in Proc:
+            ProcNames[Proc['NodeId']] = Proc['pluginName']
+        else:
+            ProcNames[Proc['NodeId']] = Proc['name']
     
     return(RecChs, ProcNames)
 
