@@ -91,10 +91,12 @@ def GetRecChs(File):
         if 'CHANNEL_INFO' in Proc:
             for Ch in Proc['CHANNEL_INFO']['CHANNEL'].values():
                 RecChs = FindRecProcs(Ch, Proc, RecChs)
-        
-        else:
+            
+        elif 'CHANNEL' in Proc:
             for Ch in Proc['CHANNEL'].values():
                 RecChs = FindRecProcs(Ch, Proc, RecChs)
+            
+        else: continue
         
         if 'pluginName' in Proc:
             ProcNames[Proc['NodeId']] = Proc['pluginName']
