@@ -35,6 +35,18 @@ Examples:
 from xml.etree import ElementTree
 
 
+
+def FindRecProcs(Ch, Proc, RecChs):
+    ChNo = Ch['number']
+    Rec = Proc['CHANNEL'][ChNo]['SELECTIONSTATE']['record']
+    
+    if Rec == '1':
+        if Proc['NodeId'] not in RecChs: RecChs[Proc['NodeId']] = {}
+        RecChs[Proc['NodeId']][ChNo] = Ch
+    
+    return(RecChs)
+
+
 def Root2Dict(El):
     Dict = {}
     if El.getchildren(): 
@@ -53,15 +65,13 @@ def Root2Dict(El):
                     Dict[SubEl.tag].update(
                         {K: SubEl.get(K) for K in SubEl.keys() if K is not 'name'}
                     )
-                    
-                
+            
             else: Dict[SubEl.tag] = Root2Dict(SubEl)
+        
+        return(Dict)
     else:
-        if El.items(): Dict[El.tag] = dict(El.items())
-        else: Dict[El.tag] = El.text
-    
-    
-    return(Dict)
+        if El.items(): return(dict(El.items()))
+        else: return(El.text)
 
 
 def XML2Dict(File):
@@ -76,19 +86,26 @@ def GetRecChs(File):
     RecChs = {}; ProcNames = {}
     
     for P, Proc in Info['SIGNALCHAIN']['PROCESSOR'].items():
-        if 'CHANNEL_INFO' not in Proc: continue
+        if Proc['isSource'] == '1': SourceProc = P[:]
         
-        for C, Ch in Proc['CHANNEL_INFO']['CHANNEL'].items():
-            ChNo = Ch['CHANNEL']['number']
-            Rec = Proc['CHANNEL'][ChNo]['SELECTIONSTATE']['SELECTIONSTATE']['record']
-            if Rec == '1':
-                if Proc['NodeId'] not in RecChs: RecChs[Proc['NodeId']] = {}
-                RecChs[Proc['NodeId']][ChNo] = Ch['CHANNEL']
+        if 'CHANNEL_INFO' in Proc:
+            for Ch in Proc['CHANNEL_INFO']['CHANNEL'].values():
+                RecChs = FindRecProcs(Ch, Proc, RecChs)
+        
+        else:
+            for Ch in Proc['CHANNEL'].values():
+                RecChs = FindRecProcs(Ch, Proc, RecChs)
         
         if 'pluginName' in Proc:
             ProcNames[Proc['NodeId']] = Proc['pluginName']
         else:
             ProcNames[Proc['NodeId']] = Proc['name']
+    
+    SourceProc = Info['SIGNALCHAIN']['PROCESSOR'][SourceProc]['CHANNEL_INFO']['CHANNEL']
+    for P, Proc in RecChs.items():
+        for C, Ch in Proc.items():
+            if 'gain' not in Ch:
+                RecChs[P][C].update([c for c in SourceProc.values() if c['number'] == C][0])
     
     return(RecChs, ProcNames)
 
