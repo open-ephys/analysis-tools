@@ -163,13 +163,16 @@ def loadContinuous(filepath, dtype = float):
 
 def loadSpikes(filepath):
 
-    # doesn't quite work...spikes are transposed in a weird way
+    '''
+    Loads spike waveforms and timestamps from filepath (should be .spikes file)
+
+    '''
 
     data = { }
 
     print('loading spikes...')
 
-    f = open(filepath,'rb')
+    f = open(filepath, 'rb')
     header = readHeader(f)
 
     if float(header[' version']) < 0.4:
@@ -190,7 +193,6 @@ def loadSpikes(filepath):
     currentSpike = 0
 
     while f.tell() < os.fstat(f.fileno()).st_size:
-
         eventType = np.fromfile(f, np.dtype('<u1'),1) #always equal to 4, discard
         timestamps[currentSpike] = np.fromfile(f, np.dtype('<i8'), 1)
         software_timestamp = np.fromfile(f, np.dtype('<i8'), 1)
@@ -205,17 +207,19 @@ def loadSpikes(filepath):
         sampleFreq = np.fromfile(f, np.dtype('<u2'),1)
 
         waveforms = np.fromfile(f, np.dtype('<u2'), numChannels*numSamples)
-        wv = np.reshape(waveforms, (numSamples, numChannels))
-
         gain[currentSpike,:] = np.fromfile(f, np.float32, numChannels)
         thresh[currentSpike,:] = np.fromfile(f, np.dtype('<u2'), numChannels)
-
         recNum[currentSpike] = np.fromfile(f, np.dtype('<u2'), 1)
 
-        #print wv.shape
+        waveforms_reshaped = np.reshape(waveforms, (numChannels, numSamples))
+        waveforms_reshaped = waveforms_reshaped.astype(float)
+        waveforms_uv = waveforms_reshaped
 
         for ch in range(numChannels):
-            spikes[currentSpike,:,ch] = (np.float64(wv[:,ch])-32768)/(gain[currentSpike,ch]/1000)
+            waveforms_uv[ch, :] -= 32768
+            waveforms_uv[ch, :] /= gain[currentSpike, ch]*1000
+
+        spikes[currentSpike] = waveforms_uv.T
 
         currentSpike += 1
 
@@ -228,6 +232,7 @@ def loadSpikes(filepath):
     data['sortedId'] = sortedId[:currentSpike]
 
     return data
+
 
 def loadEvents(filepath):
 
