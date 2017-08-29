@@ -86,7 +86,10 @@ def GetRecChs(File):
     RecChs = {}; ProcNames = {}
     
     for P, Proc in Info['SIGNALCHAIN']['PROCESSOR'].items():
-        if Proc['isSource'] == '1': SourceProc = P[:]
+        if 'isSource' in Proc: 
+            if Proc['isSource'] == '1': SourceProc = P[:]
+        else:
+            if Proc['name'].split('/')[0] == 'Sources': SourceProc = P[:]
         
         if 'CHANNEL_INFO' in Proc:
             for Ch in Proc['CHANNEL_INFO']['CHANNEL'].values():
