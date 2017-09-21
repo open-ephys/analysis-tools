@@ -86,9 +86,12 @@ def GetRecChs(File):
     RecChs = {}; ProcNames = {}
     
     for P, Proc in Info['SIGNALCHAIN']['PROCESSOR'].items():
-        if Proc['isSource'] == '1': SourceProc = P[:]
+        if 'isSource' in Proc: 
+            if Proc['isSource'] == '1': SourceProc = P[:]
+        else:
+            if Proc['name'].split('/')[0] == 'Sources': SourceProc = P[:]
         
-        if 'CHANNEL_INFO' in Proc:
+        if 'CHANNEL_INFO' in Proc and Proc['CHANNEL_INFO']:
             for Ch in Proc['CHANNEL_INFO']['CHANNEL'].values():
                 RecChs = FindRecProcs(Ch, Proc, RecChs)
             
@@ -103,7 +106,11 @@ def GetRecChs(File):
         else:
             ProcNames[Proc['NodeId']] = Proc['name']
     
-    SourceProc = Info['SIGNALCHAIN']['PROCESSOR'][SourceProc]['CHANNEL_INFO']['CHANNEL']
+    if Info['SIGNALCHAIN']['PROCESSOR'][SourceProc]['CHANNEL_INFO']:
+        SourceProc = Info['SIGNALCHAIN']['PROCESSOR'][SourceProc]['CHANNEL_INFO']['CHANNEL']
+    else:
+        SourceProc = Info['SIGNALCHAIN']['PROCESSOR'][SourceProc]['CHANNEL']
+    
     for P, Proc in RecChs.items():
         for C, Ch in Proc.items():
             if 'gain' not in Ch:
