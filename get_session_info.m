@@ -57,7 +57,7 @@ for i = 1:xRoot.getChildNodes.getLength-1
                            electrodeName = char(xElectrode.getAttributes.getNamedItem('name').getValue);
                            numChannels = str2double(xElectrode.getAttributes.getNamedItem('numChannels').getValue);
                            channels = zeros(1, numChannels);
-                           
+
                            channelIndex = 0;
                            
                            % LOOP THROUGH CHANNEL NODES FOR ELECTRODE
@@ -66,7 +66,7 @@ for i = 1:xRoot.getChildNodes.getLength-1
                               if strcmp(xElectrode.item(m).getNodeName, 'SUBCHANNEL')
                                   
                                   channelIndex = channelIndex + 1;
-                                  
+
                                   xChannel = xElectrode.item(m);
                                   
                                   ch = str2double(xChannel.getAttributes.getNamedItem('ch').getValue);
@@ -105,11 +105,11 @@ for filenum = 1:length(directory_contents)
        nodeId = str2num(fname(1:underscore-1));
        chNum = str2num(fname(chstr+2:dot-1));
 
-       for n = 1:size(processors,1)          
-           if nodeId == processors{n,1}              
-               processors{n,3} = [processors{n,3} chNum];               
-           end           
-       end       
+       for n = 1:size(processors,1)
+           if nodeId == processors{n,1}
+               processors{n,3} = [processors{n,3} chNum];
+           end
+       end
    end
 end
 

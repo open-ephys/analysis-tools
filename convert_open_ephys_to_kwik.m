@@ -55,11 +55,11 @@ disp(kwikfile)
     
 info.kwikfile = kwikfile;
     
-if numel(dir([kwikfile]))
+if numel(dir(kwikfile))
     delete(kwikfile)
 end
 
-fid = H5F.create(kwikfile);
+H5F.create(kwikfile);
 h5writeatt(kwikfile, '/', 'kwik_version', '2')
 
 
@@ -73,15 +73,23 @@ for processor = 1:size(info.processors,1)
     
     recorded_channels = info.processors{processor, 3};
     
-    if length(recorded_channels) > 0
-    
+    if ~isempty(recorded_channels)
+
+        processor_index = processor_index + 1;
+
+        % initialize this processor's kwd file
         kwdfile = [get_full_path(output_directory) filesep ...
             int2str(info.processors{processor,1}) '_raw.kwd'];
+        info.kwdfiles{processor_index} = kwdfile;
 
-        if numel(dir([kwdfile]))
-            delete(kwdfile)
+        if numel(dir(kwdfile))
+            delete(kwdfile);
         end
         
+        h5create(kwdfile, '/kwik_version', [1 1], 'Datatype', 'int16');
+        h5write(kwdfile, '/kwik_version', int16(2));
+        h5writeatt(kwdfile, '/', 'kwik_version', 2);
+
         for ch = 1:length(recorded_channels)
 
             filename_in = [input_directory filesep ...
@@ -102,37 +110,25 @@ for processor = 1:size(info.processors,1)
                 this_block = int16(data(start_sample:end_sample));
 
                 if ch == 1
-                        
-                    if X == 1
-                        processor_index = processor_index + 1;
-                        info.kwdfiles{processor_index} = kwdfile;
-                    end
-                    
-                    
                     internal_path = ['/recordings/' int2str(X-1)];
+
+                    if processor_index == 1 % only write to the kwik file for the first processor
+                        h5create(kwikfile, [internal_path '/start_sample'], [1 1],...
+                            'Datatype', 'int64');
+                        h5write(kwikfile, [internal_path '/start_sample'], int64(timestamps(start_sample)));
+
+                        h5create(kwikfile, [internal_path '/sample_rate'], [1 1],...
+                            'Datatype', 'int16');
+                        h5write(kwikfile, [internal_path '/sample_rate'], int16(info_continuous.header.sampleRate));
+                    end
     
                     h5create(kwdfile, [internal_path '/data'], ...
                         [numel(recorded_channels) numel(this_block)], ...
                         'Datatype', 'int16', ...
                         'ChunkSize', [1 numel(this_block)]);
                     
-
-                    h5create(kwikfile, [internal_path '/start_sample'], [1 1],...
-                        'Datatype', 'int64');
-                    h5write(kwikfile, [internal_path '/start_sample'], int64(timestamps(start_sample)));
-                        
-                    h5create(kwikfile, [internal_path '/sample_rate'], [1 1],...
-                        'Datatype', 'int16');
-                    h5write(kwikfile, [internal_path '/sample_rate'], int16(info_continuous.header.sampleRate));
-
-                    h5create(kwdfile, '/kwik_version', [1 1],...
-                        'Datatype', 'int16');
-                    h5write(kwdfile, '/kwik_version', int16(2));
-         
-                    h5writeatt(kwdfile, '/', 'kwik_version', 2);
-
-                    h5writeatt(kwdfile, [internal_path ],'start_sample', int64(timestamps(start_sample)));
-                    h5writeatt(kwdfile, [internal_path ],'sample_rate', int16(info_continuous.header.sampleRate));
+                    h5writeatt(kwdfile, internal_path, 'start_sample', int64(timestamps(start_sample)));
+                    h5writeatt(kwdfile, internal_path, 'sample_rate', int16(info_continuous.header.sampleRate));
 
                     h5create(kwdfile, [internal_path '/start_sample'], [1 1],...
                         'Datatype', 'int64');
@@ -172,7 +168,7 @@ kwxfile = [get_full_path(output_directory) filesep ...
 
 info.kwxfile = kwxfile;
 
-if numel(dir([kwxfile]))
+if numel(dir(kwxfile))
     delete(kwxfile)
 end
 
@@ -191,7 +187,7 @@ for X = 1:size(info.electrodes,1)
     
     h5writeatt(kwikfile, internal_path, 'name', filename_string);
     
-    filename_string(find(filename_string == ' ')) = [ ];
+    filename_string(filename_string == ' ') = [ ];
     
     filename_in = [input_directory filesep ...
         filename_string '.spikes'];
@@ -199,7 +195,7 @@ for X = 1:size(info.electrodes,1)
     [data, timestamps, info_spikes] = load_open_ephys_data(filename_in);
     
      h5create(kwxfile, [internal_path '/waveforms_filtered'], ...
-                 [size(data)], ...
+                 size(data), ...
                  'Datatype', 'int16', ...
                  'ChunkSize',[1 size(data,2) size(data,3)]);
              
