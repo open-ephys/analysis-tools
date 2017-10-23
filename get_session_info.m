@@ -34,8 +34,8 @@ for i = 1:xRoot.getChildNodes.getLength-1
                 
                 xProcessor = xSignalChain.item(j);
                
-                nodeId = str2num(char(xProcessor.getAttributes.item(0).getValue));
-                processorName = char(xProcessor.getAttributes.item(2).getValue);
+                nodeId = str2double(xProcessor.getAttributes.getNamedItem('NodeId').getValue);
+                processorName = char(xProcessor.getAttributes.getNamedItem('name').getValue);
                 
                 processors{processorIndex,1} = nodeId;
                 processors{processorIndex,2} = processorName;
@@ -54,19 +54,24 @@ for i = 1:xRoot.getChildNodes.getLength-1
                             
                            xElectrode = xProcessor.item(k);
                            
-                           electrodeName = char(xElectrode.getAttributes.item(0).getValue);
-                           channels = [ ];
+                           electrodeName = char(xElectrode.getAttributes.getNamedItem('name').getValue);
+                           numChannels = str2double(xElectrode.getAttributes.getNamedItem('numChannels').getValue);
+                           channels = zeros(1, numChannels);
+                           
+                           channelIndex = 0;
                            
                            % LOOP THROUGH CHANNEL NODES FOR ELECTRODE
                            for m = 1:xElectrode.getChildNodes.getLength-1
                                
                               if strcmp(xElectrode.item(m).getNodeName, 'SUBCHANNEL')
                                   
+                                  channelIndex = channelIndex + 1;
+                                  
                                   xChannel = xElectrode.item(m);
                                   
-                                  ch = str2num(char(xChannel.getAttributes.item(0).getValue));
+                                  ch = str2double(xChannel.getAttributes.getNamedItem('ch').getValue);
                                   
-                                  channels = [channels ch];
+                                  channels(channelIndex) = ch;
                                   
                               end
                                
@@ -93,37 +98,19 @@ for filenum = 1:length(directory_contents)
       
        fname = directory_contents(filenum).name;
        
-      % disp(fname)
-       
        underscore = strfind(fname, '_');
        chstr = strfind(fname, 'CH');
        dot = strfind(fname, '.');
        
        nodeId = str2num(fname(1:underscore-1));
        chNum = str2num(fname(chstr+2:dot-1));
-       
-      % disp(nodeId)
-       
-       for n = 1:size(processors,1)
-          
-           if nodeId == processors{n,1}
-              
-               processors{n,3} = [processors{n,3} chNum];
-               
-           end
-           
-       end
-       
-   elseif numel(strfind(directory_contents(filenum).name, '.spikes')) > 0
-       
-       % don't need to do anything here
-       
-   elseif numel(strfind(directory_contents(filenum).name, '.events')) > 0
-       
-       info.events_file = directory_contents(filenum).name;
-       
-   end
 
+       for n = 1:size(processors,1)          
+           if nodeId == processors{n,1}              
+               processors{n,3} = [processors{n,3} chNum];               
+           end           
+       end       
+   end
 end
 
 for n = 1:size(processors,1)
@@ -134,3 +121,6 @@ end
 
 info.electrodes = electrodes;
 info.processors = processors;
+info.events_file = 'all_channels.events';
+info.messages_file = 'messages.events';
+end
