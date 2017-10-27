@@ -148,6 +148,7 @@ switch filetype
                 timestamps(current_sample+1:current_sample+info.nsamples(record)) = info.ts(record):info.ts(record)+info.nsamples(record)-1;
                 current_sample = current_sample + info.nsamples(record);
             end
+            timestamps = timestamps./info.header.sampleRate;
         end
     case '.spikes'
         timestamps = segRead('timestamps')./info.header.sampleRate;
