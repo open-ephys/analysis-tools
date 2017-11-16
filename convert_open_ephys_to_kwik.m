@@ -141,7 +141,7 @@ for processor = 1:size(info.processors,1)
                     h5writeatt(kwdfile, internal_path, 'bit_depth', info_continuous.header.bitVolts);
                     h5create(kwdfile, [internal_path '/bit_depth'], [1 1],...
                         'Datatype', 'double');
-                    h5write(kwdfile, [internal_path '/sample_rate'], (info_continuous.header.bitVolts));
+                    h5write(kwdfile, [internal_path '/bit_depth'], (info_continuous.header.bitVolts));
 
                     h5create(kwdfile, [internal_path '/application_data/channel_bit_volts'], [1 1], ...
                         'DataType', 'double');
