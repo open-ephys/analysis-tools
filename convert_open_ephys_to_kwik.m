@@ -51,7 +51,7 @@ info = get_session_info(input_directory);
 kwikfile = [get_full_path(output_directory) filesep ...
         'session_info.kwik'];
     
-disp(kwikfile)
+disp(['Writing ' kwikfile '...'])
     
 info.kwikfile = kwikfile;
     
@@ -86,6 +86,8 @@ for processor = 1:size(info.processors,1)
             delete(kwdfile);
         end
         
+        disp(['Writing ' kwdfile '...']);
+
         h5create(kwdfile, '/kwik_version', [1 1], 'Datatype', 'int16');
         h5write(kwdfile, '/kwik_version', int16(2));
         h5writeatt(kwdfile, '/', 'kwik_version', 2);
