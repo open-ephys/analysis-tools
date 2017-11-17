@@ -97,7 +97,7 @@ for processor = 1:size(info.processors,1)
                 int2str(info.processors{processor, 1}) ...
                 '_CH' int2str(recorded_channels(ch)) '.continuous'];
 
-            [data, timestamps, info_continuous] = load_open_ephys_data(filename_in);
+            [data, timestamps, info_continuous] = load_open_ephys_data_faster(filename_in, 'unscaledInt16');
 
             recording_blocks = unique(info_continuous.recNum);
             block_size = info_continuous.header.blockLength;
@@ -110,8 +110,9 @@ for processor = 1:size(info.processors,1)
 
                 this_block = int16(data(start_sample:end_sample));
 
-                if ch == 1
-                    internal_path = ['/recordings/' int2str(X-1)];
+                internal_path = ['/recordings/' int2str(X-1)];
+
+                if ch == 1 % only create dataset and write attributes once per recording block
 
                     if processor_index == 1 % only write to the kwik file for the first processor
                         h5create(kwikfile, [internal_path '/start_sample'], [1 1],...
@@ -139,7 +140,7 @@ for processor = 1:size(info.processors,1)
                 h5write(kwdfile, [internal_path '/application_data/channel_bit_volts'], ...
                     info_continuous.header.bitVolts, [1 ch], [1 1]);
 
-                h5write(kwdfile,['/recordings/' int2str(X-1) '/data'], ...
+                h5write(kwdfile,[internal_path '/data'], ...
                     (this_block(1:end))', [ch 1], [1 numel(this_block)]);
 
             end
