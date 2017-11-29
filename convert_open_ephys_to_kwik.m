@@ -51,7 +51,7 @@ info = get_session_info(input_directory);
 kwikfile = [get_full_path(output_directory) filesep ...
         'session_info.kwik'];
     
-disp(kwikfile)
+disp(['Writing ' kwikfile '...'])
     
 info.kwikfile = kwikfile;
     
@@ -86,17 +86,20 @@ for processor = 1:size(info.processors,1)
             delete(kwdfile);
         end
         
+        disp(['Writing ' kwdfile '...']);
+
         h5create(kwdfile, '/kwik_version', [1 1], 'Datatype', 'int16');
         h5write(kwdfile, '/kwik_version', int16(2));
         h5writeatt(kwdfile, '/', 'kwik_version', 2);
 
-        for ch = 1:length(recorded_channels)
+        num_channels = length(recorded_channels);
+        for ch = 1:num_channels
 
             filename_in = [input_directory filesep ...
                 int2str(info.processors{processor, 1}) ...
                 '_CH' int2str(recorded_channels(ch)) '.continuous'];
 
-            [data, timestamps, info_continuous] = load_open_ephys_data(filename_in);
+            [data, timestamps, info_continuous] = load_open_ephys_data_faster(filename_in, 'unscaledInt16');
 
             recording_blocks = unique(info_continuous.recNum);
             block_size = info_continuous.header.blockLength;
@@ -109,8 +112,9 @@ for processor = 1:size(info.processors,1)
 
                 this_block = int16(data(start_sample:end_sample));
 
-                if ch == 1
-                    internal_path = ['/recordings/' int2str(X-1)];
+                internal_path = ['/recordings/' int2str(X-1)];
+
+                if ch == 1 % only create dataset and write attributes once per recording block
 
                     if processor_index == 1 % only write to the kwik file for the first processor
                         h5create(kwikfile, [internal_path '/start_sample'], [1 1],...
@@ -123,33 +127,22 @@ for processor = 1:size(info.processors,1)
                     end
     
                     h5create(kwdfile, [internal_path '/data'], ...
-                        [numel(recorded_channels) numel(this_block)], ...
+                        [num_channels numel(this_block)], ...
                         'Datatype', 'int16', ...
                         'ChunkSize', [1 numel(this_block)]);
                     
                     h5writeatt(kwdfile, internal_path, 'start_sample', int64(timestamps(start_sample)));
                     h5writeatt(kwdfile, internal_path, 'sample_rate', int16(info_continuous.header.sampleRate));
 
-                    h5create(kwdfile, [internal_path '/start_sample'], [1 1],...
-                        'Datatype', 'int64');
-                    h5write(kwdfile, [internal_path '/start_sample'], int64(timestamps(start_sample)));
-                        
-                    h5create(kwdfile, [internal_path '/sample_rate'], [1 1],...
-                        'Datatype', 'int16');
-                    h5write(kwdfile, [internal_path '/sample_rate'], int16(info_continuous.header.sampleRate));
-
                     h5writeatt(kwdfile, internal_path, 'bit_depth', info_continuous.header.bitVolts);
-                    h5create(kwdfile, [internal_path '/bit_depth'], [1 1],...
-                        'Datatype', 'double');
-                    h5write(kwdfile, [internal_path '/sample_rate'], (info_continuous.header.bitVolts));
-
-                    h5create(kwdfile, [internal_path '/application_data/channel_bit_volts'], [1 1], ...
+                    h5create(kwdfile, [internal_path '/application_data/channel_bit_volts'], [1 num_channels], ...
                         'DataType', 'double');
-                    h5write(kwdfile, [internal_path '/application_data/channel_bit_volts'], (info_continuous.header.bitVolts));
-                    h5writeatt(kwdfile, [internal_path '/application_data'], 'channel_bit_volts', (info_continuous.header.bitVolts));
                 end
+                
+                h5write(kwdfile, [internal_path '/application_data/channel_bit_volts'], ...
+                    info_continuous.header.bitVolts, [1 ch], [1 1]);
 
-                h5write(kwdfile,['/recordings/' int2str(X-1) '/data'], ...
+                h5write(kwdfile,[internal_path '/data'], ...
                     (this_block(1:end))', [ch 1], [1 numel(this_block)]);
 
             end
