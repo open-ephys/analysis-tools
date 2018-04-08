@@ -72,18 +72,24 @@ for kE = 1:length(info)
     % 2. create the KWD files
     
     processor_index = 0;
-    
-    kwik_blocks_written = [];
-    
+        
     for processor = 1:size(info(kE).processors,1)
         
-        recorded_channels = info(kE).processors{processor, 3};
+        recorded_channels_per_block = info(kE).processors{processor, 3};
+        num_blocks = length(recorded_channels_per_block);
+
+        recorded_channels = unique([recorded_channels_per_block{:}]);
+        num_channels = length(recorded_channels);
         
-        if isempty(recorded_channels)
+        if num_channels == 0
             continue;
         end
         
         processor_index = processor_index + 1;
+        
+        if processor_index == 1
+            kwik_blocks_written = false(num_blocks, 1);
+        end
         
         % initialize this processor's kwd file
         kwdfile = [get_full_path(output_directory) filesep ...
@@ -100,36 +106,61 @@ for kE = 1:length(info)
         H5F.create(kwdfile);
         h5writeatt(kwdfile, '/', 'kwik_version', uint16(2));
         
-        num_channels = length(recorded_channels);
+        blocks_to_write = find(cellfun(@length, recorded_channels_per_block) ~= 0)';
         
-        blocks_created = [];
+        % initialize data fields       
+        for block = blocks_to_write
+            this_block_num_channels = length(recorded_channels_per_block{block});
+            internal_path = ['/recordings/' int2str(block-1)];
+            
+            h5create(kwdfile, [internal_path '/application_data/channel_bit_volts'], ...
+                this_block_num_channels, 'DataType', 'single');
+            
+            h5create(kwdfile, [internal_path '/application_data/channel_sample_rates'], ... 
+                this_block_num_channels, 'DataType', 'single');
+            
+            h5create(kwdfile, [internal_path '/application_data/timestamps'], ...
+                [this_block_num_channels Inf], ...
+                'Datatype', 'int64', 'ChunkSize', [this_block_num_channels 16]);
+            
+            h5create(kwdfile, [internal_path '/data'], ...
+                [this_block_num_channels Inf], ...
+                'Datatype', 'int16', 'ChunkSize', [this_block_num_channels 2048]);
+        end
         
+        % keep track of whether each block is multi-sample-rate
+        first_sample_rate = zeros(num_blocks, 1);
+        is_multi_sample_rate = false(num_blocks, 1);
+        
+        % add data from each channel
         for ch = 1:num_channels
             
             filename_in = recorded_channels{ch};
             [data, timestamps, info_continuous] = load_open_ephys_data_faster(filename_in, 'unscaledInt16');
             
-            recording_blocks = unique(info_continuous.recNum);
+            this_channel_blocks = unique(info_continuous.recNum);
             block_size = info_continuous.header.blockLength;
             
-            for block_num = recording_blocks' + 1 % make sure it's one-based so they can be used for indexing
+            for block = this_channel_blocks' + 1 % make sure it's one-based so they can be used for indexing
                 
-                in_block = find(info_continuous.recNum == block_num - 1);
+                in_block = find(info_continuous.recNum == block - 1);
                 start_sample = (in_block(1)-1)*block_size+1;
                 end_sample = (in_block(end)-1)*block_size+block_size;
                 
-                this_block = int16(data(start_sample:end_sample));
+                this_block_data = int16(data(start_sample:end_sample));
                 this_block_ts = int64(info_continuous.ts(in_block));
                 
-                internal_path = ['/recordings/' int2str(block_num - 1)];
+                internal_path = ['/recordings/' int2str(block-1)];
                 
-                if block_num > length(blocks_created) || ~blocks_created(block_num)
-                    % only create dataset and write attributes once per recording block                    
-                    blocks_created(block_num) = true;
+                chan_ind_in_block = find(strcmp(filename_in, recorded_channels_per_block{block}));
+                chan_sample_rate = info_continuous.header.sampleRate;
+                
+                if chan_ind_in_block == 1
+                    % only write attributes for first channel                    
                     
-                    if block_num > length(kwik_blocks_written) || ~kwik_blocks_written(block_num)
+                    if block > length(kwik_blocks_written) || ~kwik_blocks_written(block)
                         % only write to the kwik file once per block, over all processors
-                        kwik_blocks_written(block_num) = true;
+                        kwik_blocks_written(block) = true;
                         
                         h5create(kwikfile, [internal_path '/start_sample'], [1 1],...
                             'Datatype', 'int64');
@@ -137,61 +168,44 @@ for kE = 1:length(info)
                         
                         h5create(kwikfile, [internal_path '/sample_rate'], [1 1],...
                             'Datatype', 'int16');
-                        h5write(kwikfile, [internal_path '/sample_rate'], int16(info_continuous.header.sampleRate));
+                        h5write(kwikfile, [internal_path '/sample_rate'], int16(chan_sample_rate));
                     end
-                    
-                    % keep track of whether this is multi-sample data
-                    firstSampleRate(block_num) = info_continuous.header.sampleRate;
-                    isMultiSample(block_num) = false;
-                    
-                    % datasets
-                    h5create(kwdfile, [internal_path '/application_data/channel_bit_volts'], Inf, ...
-                        'DataType', 'single', 'ChunkSize', 1);
-                    
-                    h5create(kwdfile, [internal_path '/application_data/channel_sample_rates'], Inf, ...
-                        'DataType', 'single', 'ChunkSize', 1);
-                    
-                    h5create(kwdfile, [internal_path '/application_data/timestamps'], ...
-                        [Inf length(this_block_ts)], ...
-                        'Datatype', 'int64', 'ChunkSize', [1 16]);
-                    
-                    h5create(kwdfile, [internal_path '/data'], ...
-                        [Inf numel(this_block)], ...
-                        'Datatype', 'int16', 'ChunkSize', [1 2048]);
-                    
+
                     % attributes
                     h5writeatt(kwdfile, internal_path, 'start_sample', uint32(0));
-                    h5writeatt(kwdfile, internal_path, 'sample_rate', single(firstSampleRate(block_num)));
+                    h5writeatt(kwdfile, internal_path, 'sample_rate', single(info_continuous.header.sampleRate));
                     h5writeatt(kwdfile, internal_path, 'bit_depth', uint32(16));
-                    h5writeatt(kwdfile, internal_path, 'name', sprintf('Open Ephys Recording #%d', block_num - 1));
+                    h5writeatt(kwdfile, internal_path, 'name', sprintf('Open Ephys Recording #%d', block - 1));
                     h5writeatt(kwdfile, internal_path, 'start_time', uint64(this_block_ts(1)));
                 end
                 
-                % get channel index relative to current block
-                bitVoltsInfo = h5info(kwdfile, [internal_path '/application_data/channel_bit_volts']);
-                relative_chan_ind = bitVoltsInfo.Dataspace.Size + 1;
+                % keep track of whether this block is multi-sample-rate                
+                if first_sample_rate(block) == 0
+                    first_sample_rate(block) = chan_sample_rate;
+                else
+                    is_multi_sample_rate(block) = is_multi_sample_rate(block) | chan_sample_rate ~= first_sample_rate(block);
+                end
                 
+                % write data
                 h5write(kwdfile, [internal_path '/application_data/channel_bit_volts'], ...
-                    single(info_continuous.header.bitVolts), relative_chan_ind, 1);
-                
-                chanSampleRate = info_continuous.header.sampleRate;
-                isMultiSample(block_num) = isMultiSample(block_num) | chanSampleRate ~= firstSampleRate(block_num);
+                    single(info_continuous.header.bitVolts), chan_ind_in_block, 1);
+
                 h5write(kwdfile, [internal_path '/application_data/channel_sample_rates'], ...
-                    single(chanSampleRate), relative_chan_ind, 1);
+                    single(chan_sample_rate), chan_ind_in_block, 1);
                 
                 h5write(kwdfile, [internal_path '/application_data/timestamps'], ...
-                    this_block_ts', [relative_chan_ind 1], [1 length(this_block_ts)]);
+                    this_block_ts', [chan_ind_in_block 1], [1 length(this_block_ts)]);
                 
                 h5write(kwdfile, [internal_path '/data'], ...
-                    (this_block(1:end))', [relative_chan_ind 1], [1 numel(this_block)]);
+                    (this_block_data(1:end))', [chan_ind_in_block 1], [1 numel(this_block_data)]);
                 
             end
             
         end
         
-        for block_num = find(blocks_created)
-            internal_path = ['/recordings/' int2str(block_num - 1)];
-            h5writeatt(kwdfile, [internal_path '/application_data'], 'is_multiSampleRate_data', uint8(isMultiSample(block_num)));
+        for block = blocks_to_write
+            internal_path = ['/recordings/' int2str(block - 1)];
+            h5writeatt(kwdfile, [internal_path '/application_data'], 'is_multiSampleRate_data', uint8(is_multi_sample_rate(block)));
         end
     end
     
@@ -208,12 +222,12 @@ for kE = 1:length(info)
         delete(kwxfile)
     end
     
-    for block_num = 1:size(info(kE).electrodes,1)
+    for block = 1:size(info(kE).electrodes,1)
         
-        filename_string = info(kE).electrodes{block_num, 1};
-        channels = info(kE).electrodes{block_num, 2};
+        filename_string = info(kE).electrodes{block, 1};
+        channels = info(kE).electrodes{block, 2};
         
-        internal_path = ['/channel_groups/' int2str(block_num-1)];
+        internal_path = ['/channel_groups/' int2str(block-1)];
         
         for ch = 1:length(channels)
             

@@ -56,7 +56,6 @@ for s = numSessions:-1:1 % iterate backwards to preallocate
                     
                     processors{processorIndex,1} = nodeId;
                     processors{processorIndex,2} = processorName;
-                    processors{processorIndex,3} = {}; % to contain recording filenames
                     
                     if strcmp(processorName, 'Filters/Spike Detector')
                         
@@ -112,16 +111,29 @@ for s = numSessions:-1:1 % iterate backwards to preallocate
     DOMnode = xmlread([directory filesep 'Continuous_Data' sessStr '.openephys']);
     xRoot = DOMnode.getDocumentElement;
     
-    % loop over recordings
+    % gather recordings
+    xRecordings = {};
     for kR = 1:xRoot.getChildNodes.getLength - 1
         
-        if ~strcmp(xRoot.item(kR).getNodeName, 'RECORDING')
+        if strcmp(xRoot.item(kR).getNodeName, 'RECORDING')
+            recNum = str2double(xRoot.item(kR).getAttributes.getNamedItem('number').getValue);
+            xRecordings{recNum + 1} = xRoot.item(kR);
+        end
+    end
+    
+    % to hold filenames
+    nRecordings = length(xRecordings);
+    processors(:, 3) = repmat({repmat({{}}, nRecordings, 1)}, size(processors, 1), 1);
+    
+    % loop over recordings
+    for kR = 1:nRecordings        
+        xRecording = xRecordings{kR};
+        
+        if isempty(xRecording)
             continue;
         end
         
-        xRecording = xRoot.item(kR);        
-        
-        % loop through processors
+        % loop over processors
         for kP = 1:xRecording.getChildNodes.getLength - 1
             if ~strcmp(xRecording.item(kP).getNodeName, 'PROCESSOR')
                 continue;
@@ -135,7 +147,7 @@ for s = numSessions:-1:1 % iterate backwards to preallocate
                 procInd = size(processors, 1) + 1;
                 processors{procInd, 1} = nodeId;
                 processors{procInd, 2} = 'Unknown Processor';
-                processors{procInd, 3} = {};
+                processors{procInd, 3} = repmat({{}}, nRecordings, 1);
             end
             
             % loop through channels
@@ -146,9 +158,7 @@ for s = numSessions:-1:1 % iterate backwards to preallocate
                 
                 xChannel = xProcessor.item(kC);
                 filename = char(xChannel.getAttributes.getNamedItem('filename').getValue);
-                if ~any(strcmp(filename, processors{procInd, 3}))                
-                    processors{procInd, 3}{end+1} = filename;
-                end
+                processors{procInd, 3}{kR}{end+1} = filename;
             end
         end
     end
