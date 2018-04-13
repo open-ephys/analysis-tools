@@ -29,7 +29,7 @@ function MatData2Kwd(data,Output,Name,Fs,varargin)
     
     bit_volts = 0.195;
     scale_val = 1;
-    if varargin{1}
+    if ~isempty(varargin) && varargin{1}
         scale_val = bit_volts;
     end
         
