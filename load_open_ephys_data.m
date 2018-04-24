@@ -59,7 +59,6 @@ filesize = getfilesize(fid);
 % constants
 NUM_HEADER_BYTES = 1024;
 SAMPLES_PER_RECORD = 1024;
-RECORD_SIZE = 8 + 16 + SAMPLES_PER_RECORD*2 + 10; % size of each continuous record in bytes
 RECORD_MARKER = [0 1 2 3 4 5 6 7 8 255]';
 RECORD_MARKER_V0 = [0 0 0 0 0 0 0 0 0 255]';
 
@@ -166,7 +165,12 @@ elseif strcmp(filetype, 'continuous')
     
     current_sample = 0;
     
-    while ftell(fid) + RECORD_SIZE < filesize % at least one record remains
+    RECORD_SIZE = 10 + SAMPLES_PER_RECORD*2 + 10; % size of each continuous record in bytes
+    if version >= 0.2
+        RECORD_SIZE = RECORD_SIZE + 2; % include recNum
+    end
+    
+    while ftell(fid) + RECORD_SIZE <= filesize % at least one record remains
         
         go_back_to_start_of_loop = 0;
         
