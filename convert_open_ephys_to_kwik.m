@@ -79,6 +79,26 @@ for kE = 1:length(info)
         num_blocks = length(recorded_channels_per_block);
 
         recorded_channels = unique([recorded_channels_per_block{:}]);
+
+        % check for missing files and filter
+        files_exist = cellfun(@(name) exist(name, 'file'), recorded_channels) == 2;
+        if ~all(files_exist)
+            warning('Some data files for %s (node %d) are missing.', ...
+                info(kE).processors{processor, 2}, info(kE).processors{processor, 1});
+
+            % remove each missing file from per-recording lists
+            for missing_file_ind = find(~files_exist(:)')
+                missing_file = recorded_channels{missing_file_ind};
+                for block = 1:num_blocks
+                    files = recorded_channels_per_block{block};
+                    recorded_channels_per_block{block} = files(~strcmp(missing_file, files));
+                end
+            end
+
+            % remove missing files from merged list
+            recorded_channels = recorded_channels(files_exist);
+        end
+
         num_channels = length(recorded_channels);
         
         if num_channels == 0
