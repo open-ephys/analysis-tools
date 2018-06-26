@@ -325,7 +325,7 @@ def pack(folderpath,source='100',**kwargs):
     if 'order' in kwargs.keys():
         order = kwargs['order']
     else:
-        order = data.keys()
+        order = list(data)
     #add a suffix, if one was specified
     if 'suffix' in kwargs.keys():
         suffix=kwargs['suffix']
@@ -340,10 +340,11 @@ def pack(folderpath,source='100',**kwargs):
     #.dat format specified here: http://neuroscope.sourceforge.net/UserManual/data-files.html
     channelOrder = []
     print(''.join(('...saving .dat to ',outpath,'...')))
-    bar = ProgressBar(len(data[data.keys()[0]]['data']))#progressbar.ProgressBar(maxval=1, widgets=[progressbar.Bar('=', '[', ']'), ' ', progressbar.Percentage()])
-    for i in range(len(data[data.keys()[0]]['data'])):
+    random_datakey = next(iter(data))
+    bar = ProgressBar(len(data[random_datakey]['data']))
+    for i in range(len(data[random_datakey]['data'])):
         for j in range(len(order)):
-            if source in data.keys()[0]:
+            if source in random_datakey:
                 ch = data[order[j]]['data']
             else:
                 ch = data[''.join(('CH',str(order[j]).replace('CH','')))]['data']
@@ -352,10 +353,8 @@ def pack(folderpath,source='100',**kwargs):
             if i == 0:
                 channelOrder.append(order[j])
         #update how mucb we have list
-        if i%(len(data[data.keys()[0]]['data'])/100)==0:
+        if i%(len(data[random_datakey]['data'])/100)==0:
             bar.animate(i)
-            #bar.update(float(i+1)/float(len(data[data.keys()[0]])))
-    #bar.finish()
     out.close()
     print(''.join(('order: ',str(channelOrder))))
     print(''.join(('.dat saved to ',outpath)))
