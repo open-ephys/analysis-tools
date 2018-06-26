@@ -46,7 +46,7 @@ def load(filepath):
 
     return data
 
-def loadFolder(folderpath,**kwargs):
+def loadFolder(folderpath, dtype = float, **kwargs):
 
     # load all continuous files in a folder
 
@@ -63,7 +63,7 @@ def loadFolder(folderpath,**kwargs):
 
     for i, f in enumerate(filelist):
         if '.continuous' in f:
-            data[f.replace('.continuous','')] = loadContinuous(os.path.join(folderpath, f))
+            data[f.replace('.continuous','')] = loadContinuous(os.path.join(folderpath, f), dtype = dtype)
             numFiles += 1
 
     print(''.join(('Avg. Load Time: ', str((time.time() - t0)/numFiles),' sec')))
@@ -311,9 +311,9 @@ def pack(folderpath,source='100',**kwargs):
     #load the openephys data into memory
     if 'data' not in kwargs.keys():
         if 'channels' not in kwargs.keys():
-            data = loadFolder(folderpath)
+            data = loadFolder(folderpath, dtype = np.int16)
         else:
-            data = loadFolder(folderpath,channels=kwargs['channels'])
+            data = loadFolder(folderpath, dtype = np.int16, channels=kwargs['channels'])
     else:
         data = kwargs['data']
     #if specified, do the digital referencing
