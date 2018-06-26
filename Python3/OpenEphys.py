@@ -46,7 +46,7 @@ def load(filepath):
 
     return data
 
-def loadFolder(folderpath,**kwargs):
+def loadFolder(folderpath, dtype = float, **kwargs):
 
     # load all continuous files in a folder
 
@@ -63,7 +63,7 @@ def loadFolder(folderpath,**kwargs):
 
     for i, f in enumerate(filelist):
         if '.continuous' in f:
-            data[f.replace('.continuous','')] = loadContinuous(os.path.join(folderpath, f))
+            data[f.replace('.continuous','')] = loadContinuous(os.path.join(folderpath, f), dtype = dtype)
             numFiles += 1
 
     print(''.join(('Avg. Load Time: ', str((time.time() - t0)/numFiles),' sec')))
@@ -311,9 +311,9 @@ def pack(folderpath,source='100',**kwargs):
     #load the openephys data into memory
     if 'data' not in kwargs.keys():
         if 'channels' not in kwargs.keys():
-            data = loadFolder(folderpath)
+            data = loadFolder(folderpath, dtype = np.int16)
         else:
-            data = loadFolder(folderpath,channels=kwargs['channels'])
+            data = loadFolder(folderpath, dtype = np.int16, channels=kwargs['channels'])
     else:
         data = kwargs['data']
     #if specified, do the digital referencing
@@ -325,7 +325,7 @@ def pack(folderpath,source='100',**kwargs):
     if 'order' in kwargs.keys():
         order = kwargs['order']
     else:
-        order = data.keys()
+        order = list(data)
     #add a suffix, if one was specified
     if 'suffix' in kwargs.keys():
         suffix=kwargs['suffix']
@@ -340,10 +340,11 @@ def pack(folderpath,source='100',**kwargs):
     #.dat format specified here: http://neuroscope.sourceforge.net/UserManual/data-files.html
     channelOrder = []
     print(''.join(('...saving .dat to ',outpath,'...')))
-    bar = ProgressBar(len(data[data.keys()[0]]['data']))#progressbar.ProgressBar(maxval=1, widgets=[progressbar.Bar('=', '[', ']'), ' ', progressbar.Percentage()])
-    for i in range(len(data[data.keys()[0]]['data'])):
+    random_datakey = next(iter(data))
+    bar = ProgressBar(len(data[random_datakey]['data']))
+    for i in range(len(data[random_datakey]['data'])):
         for j in range(len(order)):
-            if source in data.keys()[0]:
+            if source in random_datakey:
                 ch = data[order[j]]['data']
             else:
                 ch = data[''.join(('CH',str(order[j]).replace('CH','')))]['data']
@@ -352,10 +353,8 @@ def pack(folderpath,source='100',**kwargs):
             if i == 0:
                 channelOrder.append(order[j])
         #update how mucb we have list
-        if i%(len(data[data.keys()[0]]['data'])/100)==0:
+        if i%(len(data[random_datakey]['data'])/100)==0:
             bar.animate(i)
-            #bar.update(float(i+1)/float(len(data[data.keys()[0]])))
-    #bar.finish()
     out.close()
     print(''.join(('order: ',str(channelOrder))))
     print(''.join(('.dat saved to ',outpath)))
