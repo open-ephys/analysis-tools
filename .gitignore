@@ -4,3 +4,6 @@
 
 #ignore .pyc files
 *.pyc
+
+#ignore .DS_Store (mac)
+.DS_Store
