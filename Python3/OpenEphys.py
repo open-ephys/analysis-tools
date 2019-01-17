@@ -201,8 +201,8 @@ def loadSpikes(filepath):
         timestamps[currentSpike] = np.fromfile(f, np.dtype('<i8'), 1)
         software_timestamp = np.fromfile(f, np.dtype('<i8'), 1)
         source[currentSpike] = np.fromfile(f, np.dtype('<u2'), 1)
-        numChannels = np.fromfile(f, np.dtype('<u2'), 1)
-        numSamples = np.fromfile(f, np.dtype('<u2'), 1)
+        numChannels = np.fromfile(f, np.dtype('<u2'), 1)[0]
+        numSamples = np.fromfile(f, np.dtype('<u2'), 1)[0]
         sortedId[currentSpike] = np.fromfile(f, np.dtype('<u2'),1)
         electrodeId = np.fromfile(f, np.dtype('<u2'),1)
         channel = np.fromfile(f, np.dtype('<u2'),1)
