@@ -60,7 +60,11 @@ switch type
     case 'spikes'
         header=json.spikes(index);
     case 'events'
-        header=json.events{index}; %events load as cells
+        if (iscell(json.events))
+            header=json.events{index}; 
+        else
+            header=json.events(index);
+        end
     otherwise
         error('Data type not supported');
 end
