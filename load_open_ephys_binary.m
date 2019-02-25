@@ -35,6 +35,7 @@ function D=load_open_ephys_binary(jsonFile, type, index, varargin)
 %This functions requires the functions readNPY and readNPYHeader 
 %from npy-matlab package from kwik-team
 %(https://github.com/kwikteam/npy-matlab)
+%Requires minimum MATLAB version: R2016b
 
 if (exist('readNPY.m','file') == 0)
     error('OpenEphys:loadBinary:npyLibraryNotfound','readNPY not found. Please be sure that npy-matlab is accessible');
