@@ -1,8 +1,8 @@
 function D=load_open_ephys_binary(jsonFile, type, index, varargin)
 %function D=load_open_ephys_binary(oebinFile, type, index)
 %
-%Loads data recorded by Open Ephys in Ninary format
-%  OebinFile: The path for the structure.oebin json file
+%Loads data recorded by Open Ephys in Binary format
+%  oebinFile: The path for the structure.oebin json file
 %  type: The type of data to load. Can be 'continuous', 'events' or
 %  'spikes'
 %  index: The index of the recorded element as appears in the oebin file
