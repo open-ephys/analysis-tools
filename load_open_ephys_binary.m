@@ -6,6 +6,7 @@ function D=load_open_ephys_binary(jsonFile, type, index, varargin)
 %  type: The type of data to load. Can be 'continuous', 'events' or
 %  'spikes'
 %  index: The index of the recorded element as appears in the oebin file
+%(See also list_open_ephys_binary to extract recorded elements and indexes)
 %
 %Returns a structure with the header and relevant loaded data
 %
