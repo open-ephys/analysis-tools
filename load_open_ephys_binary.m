@@ -89,8 +89,8 @@ switch type
         contFile=fullfile(folder,'continuous.dat');
         if (continuousmap)
             file=dir(contFile);
-            samples=file.bytes/2/header.num_channels
-            D.Data=memmapfile(contFile,'Format',{'int16' [16 samples] 'mapped'})
+            samples=file.bytes/2/header.num_channels;
+            D.Data=memmapfile(contFile,'Format',{'int16' [header.num_channels samples] 'mapped'});
         else
             file=fopen(contFile);
             D.Data=fread(file,[header.num_channels Inf],'int16');
@@ -108,7 +108,7 @@ switch type
         group=char(f.getName());
         if (strncmp(group,'TEXT',4))
             %D.Data = readNPY(fullfile(folder,'text.npy'));
-            display('WARNING: TEXT files not supported by npy library');
+            warning('TEXT files not supported by npy library');
         elseif (strncmp(group,'TTL',3))
             D.Data = readNPY(fullfile(folder,'channel_states.npy'));
             wordfile = fullfile(folder,'full_words.npy');
