@@ -1,7 +1,7 @@
-function [data, timestamps, info] = load_open_ephys_data(filename)
-
+function [data, timestamps, info] = load_open_ephys_data(filename,varargin)
 %
 % [data, timestamps, info] = load_open_ephys_data(filename)
+% [data, timestamps, info] = load_open_ephys_data(filename,'Indices',ind)
 %
 %   Loads continuous, event, or spike data files into Matlab.
 %
@@ -51,6 +51,14 @@ function [data, timestamps, info] = load_open_ephys_data(filename)
 %     <http://www.gnu.org/licenses/>.
 %
 
+p = inputParser;
+p.addRequired('filename');
+p.addParameter('Indices',[],@(x) isempty(x) || isrow(x) && all(diff(x) > 0) ...
+    && all(fix(x) == x) && all(x > 0));
+p.parse(filename,varargin{:});
+
+range_pts = p.Results.Indices;
+
 filetype = filename(max(strfind(filename,'.'))+1:end); % parse filetype
 
 fid = fopen(filename);
@@ -74,6 +82,10 @@ SPIKE_PREALLOC_INTERVAL = 1e6;
 %-----------------------------------------------------------------------
 
 if strcmp(filetype, 'events')
+    
+    if ~isempty(range_pts)
+        error('events data is not supported for memory mapping yet')
+    end
     
     disp(['Loading events file...']);
     
@@ -140,6 +152,8 @@ if strcmp(filetype, 'events')
     
 elseif strcmp(filetype, 'continuous')
     
+    % https://open-ephys.atlassian.net/wiki/spaces/OEW/pages/65667092/Open+Ephys+format#OpenEphysformat-Continuousdatafiles(.continuous)
+    
     disp(['Loading ' filename '...']);
     
     index = 0;
@@ -170,87 +184,218 @@ elseif strcmp(filetype, 'continuous')
         RECORD_SIZE = RECORD_SIZE + 2; % include recNum
     end
     
-    while ftell(fid) + RECORD_SIZE <= filesize % at least one record remains
+    if isempty(range_pts)
         
-        go_back_to_start_of_loop = 0;
-        
-        index = index + 1;
-        
-        if (version >= 0.1)
-            timestamp = fread(fid, 1, 'int64', 0, 'l');
-            nsamples = fread(fid, 1, 'uint16',0,'l');
-            
-            
-            if version >= 0.2
-                recNum = fread(fid, 1, 'uint16');
+        while ftell(fid) + RECORD_SIZE <= filesize % at least one record remains
+
+            go_back_to_start_of_loop = 0;
+
+            index = index + 1;
+
+            if (version >= 0.1)
+                timestamp = fread(fid, 1, 'int64', 0, 'l');
+                nsamples = fread(fid, 1, 'uint16',0,'l');
+
+
+                if version >= 0.2
+                    recNum = fread(fid, 1, 'uint16');
+                end
+
+            else
+                timestamp = fread(fid, 1, 'uint64', 0, 'l');
+                nsamples = fread(fid, 1, 'int16',0,'l');
             end
-            
-        else
-            timestamp = fread(fid, 1, 'uint64', 0, 'l');
-            nsamples = fread(fid, 1, 'int16',0,'l');
-        end
-        
-        
-        if nsamples ~= SAMPLES_PER_RECORD && version >= 0.1
-            
-            disp(['  Found corrupted record...searching for record marker.']);
-            
-            % switch to searching for record markers
-            
-            last_ten_bytes = zeros(size(RECORD_MARKER));
-            
-            for bytenum = 1:RECORD_SIZE*5
-                
-                byte = fread(fid, 1, 'uint8');
-                
-                last_ten_bytes = circshift(last_ten_bytes,-1);
-                
-                last_ten_bytes(10) = double(byte);
-                
-                if last_ten_bytes(10) == RECORD_MARKER(end);
-                    
-                    sq_err = sum((last_ten_bytes - RECORD_MARKER).^2);
-                    
-                    if (sq_err == 0)
-                        disp(['   Found a record marker after ' int2str(bytenum) ' bytes!']);
-                        go_back_to_start_of_loop = 1;
-                        break; % from 'for' loop
+
+
+            if nsamples ~= SAMPLES_PER_RECORD && version >= 0.1
+
+                disp(['  Found corrupted record...searching for record marker.']);
+
+                % switch to searching for record markers
+
+                last_ten_bytes = zeros(size(RECORD_MARKER));
+
+                for bytenum = 1:RECORD_SIZE*5
+
+                    byte = fread(fid, 1, 'uint8');
+
+                    last_ten_bytes = circshift(last_ten_bytes,-1);
+
+                    last_ten_bytes(10) = double(byte);
+
+                    if last_ten_bytes(10) == RECORD_MARKER(end)
+
+                        sq_err = sum((last_ten_bytes - RECORD_MARKER).^2);
+
+                        if (sq_err == 0)
+                            disp(['   Found a record marker after ' int2str(bytenum) ' bytes!']);
+                            go_back_to_start_of_loop = 1;
+                            break; % from 'for' loop
+                        end
                     end
                 end
+
+                % if we made it through the approximate length of 5 records without
+                % finding a marker, abandon ship.
+                if bytenum == RECORD_SIZE*5
+
+                    disp(['Loading failed at block number ' int2str(index) '. Found ' ...
+                        int2str(nsamples) ' samples.'])
+
+                    break; % from 'while' loop
+
+                end
+
+
             end
-            
-            % if we made it through the approximate length of 5 records without
-            % finding a marker, abandon ship.
-            if bytenum == RECORD_SIZE*5
-                
-                disp(['Loading failed at block number ' int2str(index) '. Found ' ...
-                    int2str(nsamples) ' samples.'])
-                
-                break; % from 'while' loop
-                
+
+            if ~go_back_to_start_of_loop
+
+                block = fread(fid, nsamples, 'int16', 0, 'b'); % read in data
+
+                fread(fid, 10, 'char*1'); % read in record marker and discard
+
+                data(current_sample+1:current_sample+nsamples) = block;
+
+                current_sample = current_sample + nsamples;
+
+                info.ts(index) = timestamp;
+                info.nsamples(index) = nsamples;
+
+                if version >= 0.2
+                    info.recNum(index) = recNum;
+                end
+
             end
-            
-            
+
         end
+    
+    elseif ~isempty(range_pts)
         
-        if ~go_back_to_start_of_loop
-            
-            block = fread(fid, nsamples, 'int16', 0, 'b'); % read in data
-            
-            fread(fid, 10, 'char*1'); % read in record marker and discard
-            
-            data(current_sample+1:current_sample+nsamples) = block;
-            
-            current_sample = current_sample + nsamples;
-            
-            info.ts(index) = timestamp;
-            info.nsamples(index) = nsamples;
-            
-            if version >= 0.2
-                info.recNum(index) = recNum;
-            end
-            
-        end
+        %TODO
+         keyboard
+         
+         if (version >= 0.1)
+             if version >= 0.2
+                 m = memmapfile(filename,....
+                     'Format',{'int64',1,'timestamp';...
+                     'uint16',1,'nsamples';...
+                     'uint16',1,'recNum';...
+                     'int16',[1024, 1],'block'},...
+                     'Offset',1024,'Repeat',Inf);
+                 
+             else
+                 
+                 m = memmapfile(filename,....
+                     'Format',{'int64',1,'timestamp';...
+                     'uint16',1,'nsamples';...
+                     'int16',[1024, 1],'block'},...
+                     'Offset',1024,'Repeat',Inf);
+                 
+             end
+         else
+             m = memmapfile(filename,....
+                 'Format',{'uint64',1,'timestamp';...
+                 'int16',1,'nsamples';...
+                 'int16',[1024, 1],'block',...
+                 'Offset',1024,'Repeat',Inf});
+         end
+         
+        %TODO 
+         
+         
+         
+         % k = [low high] is for range in terms of 2070 bytes records
+         
+         k(1) = ceil(range_pts(1)/1024);
+         r(1) = rem(range_pts(1),1024);
+               
+         k(2) = floor(range_pts(2)/1024);
+         r(2) = rem(range_pts(2),1024);
+
+         if rem(range_pts(2),1024) > 0
+
+             k(2) = k(2) + 1;
+                          
+         end
+         
+         %TODO from what datapoint do you need? and how would you store it?
+         % trailing 0s or NaNs?
+         
+         %TODO fseek to skip preceding data?
+         
+         for r = k(1):k(2)
+         
+             go_back_to_start_of_loop = 0;
+
+             index = index + 1;
+
+             if (version >= 0.1)
+                 timestamp = fread(fid, 1, 'int64', 0, 'l');
+                 nsamples = fread(fid, 1, 'uint16',0,'l');
+
+
+                 if version >= 0.2
+                     recNum = fread(fid, 1, 'uint16');
+                 end
+
+             else
+                 timestamp = fread(fid, 1, 'uint64', 0, 'l');
+                 nsamples = fread(fid, 1, 'int16',0,'l');
+             end
+
+             if nsamples ~= SAMPLES_PER_RECORD && version >= 0.1
+
+                 disp(['  Found corrupted record...searching for record marker.']);
+
+                 % switch to searching for record markers
+
+                 last_ten_bytes = zeros(size(RECORD_MARKER));
+
+                 for bytenum = 1:RECORD_SIZE*5
+
+                     byte = fread(fid, 1, 'uint8');
+
+                     last_ten_bytes = circshift(last_ten_bytes,-1);
+
+                     last_ten_bytes(10) = double(byte);
+
+                     if last_ten_bytes(10) == RECORD_MARKER(end)
+
+                         sq_err = sum((last_ten_bytes - RECORD_MARKER).^2);
+
+                         if (sq_err == 0)
+                             disp(['   Found a record marker after ' int2str(bytenum) ' bytes!']);
+                             go_back_to_start_of_loop = 1;
+                             break; % from 'for' loop
+                         end
+                     end
+                 end
+
+                 % if we made it through the approximate length of 5 records without
+                 % finding a marker, abandon ship.
+                 if bytenum == RECORD_SIZE*5
+
+                     disp(['Loading failed at block number ' int2str(index) '. Found ' ...
+                         int2str(nsamples) ' samples.'])
+
+                     break; % from 'while' loop
+
+                 end
+             
+             end
+             
+         end
+         
+        
+        % data points
+        
+        
+        % use for loop and memmapfile
+        
+        
+        
+        
         
     end
     
@@ -300,6 +445,10 @@ elseif strcmp(filetype, 'continuous')
     
 elseif strcmp(filetype, 'spikes')
     
+    if ~isempty(range_pts)
+        error('spike data is not supported for memory mapping yet')
+    end
+
     disp(['Loading spikes file...']);
     
     index = 0;
