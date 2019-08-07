@@ -281,7 +281,8 @@ elseif strcmp(filetype, 'continuous')
                      'Format',{'int64',1,'timestamp';...
                      'uint16',1,'nsamples';...
                      'uint16',1,'recNum';...
-                     'int16',[1024, 1],'block'},...
+                     'int16',[1024, 1],'block';...
+                     'uint8',[1, 10],'marker'},...
                      'Offset',1024,'Repeat',Inf);
                  
              else
@@ -289,104 +290,42 @@ elseif strcmp(filetype, 'continuous')
                  m = memmapfile(filename,....
                      'Format',{'int64',1,'timestamp';...
                      'uint16',1,'nsamples';...
-                     'int16',[1024, 1],'block'},...
-                     'Offset',1024,'Repeat',Inf);
+                     'int16',[1024, 1],'block';...
+                     'uint8',[1, 10],'marker'},...
+                     'Offset',1024,'Repeat',Inf); %TODO not tested
                  
              end
          else
              m = memmapfile(filename,....
                  'Format',{'uint64',1,'timestamp';...
                  'int16',1,'nsamples';...
-                 'int16',[1024, 1],'block',...
-                 'Offset',1024,'Repeat',Inf});
+                 'int16',[1024, 1],'block';...
+                 'uint8',[1, 10],'marker'},...
+                 'Offset',1024,'Repeat',Inf); %TODO not tested
          end
          
         %TODO 
-         
-         
-         
-         % k = [low high] is for range in terms of 2070 bytes records
-         
-         k(1) = ceil(range_pts(1)/1024);
-         r(1) = rem(range_pts(1),1024);
-               
-         k(2) = floor(range_pts(2)/1024);
-         r(2) = rem(range_pts(2),1024);
-
-         if rem(range_pts(2),1024) > 0
-
-             k(2) = k(2) + 1;
-                          
-         end
-         
-         %TODO from what datapoint do you need? and how would you store it?
-         % trailing 0s or NaNs?
-         
-         %TODO fseek to skip preceding data?
-         
-         for r = k(1):k(2)
-         
-             go_back_to_start_of_loop = 0;
-
-             index = index + 1;
-
-             if (version >= 0.1)
-                 timestamp = fread(fid, 1, 'int64', 0, 'l');
-                 nsamples = fread(fid, 1, 'uint16',0,'l');
-
-
-                 if version >= 0.2
-                     recNum = fread(fid, 1, 'uint16');
-                 end
-
-             else
-                 timestamp = fread(fid, 1, 'uint64', 0, 'l');
-                 nsamples = fread(fid, 1, 'int16',0,'l');
-             end
-
-             if nsamples ~= SAMPLES_PER_RECORD && version >= 0.1
-
-                 disp(['  Found corrupted record...searching for record marker.']);
-
-                 % switch to searching for record markers
-
-                 last_ten_bytes = zeros(size(RECORD_MARKER));
-
-                 for bytenum = 1:RECORD_SIZE*5
-
-                     byte = fread(fid, 1, 'uint8');
-
-                     last_ten_bytes = circshift(last_ten_bytes,-1);
-
-                     last_ten_bytes(10) = double(byte);
-
-                     if last_ten_bytes(10) == RECORD_MARKER(end)
-
-                         sq_err = sum((last_ten_bytes - RECORD_MARKER).^2);
-
-                         if (sq_err == 0)
-                             disp(['   Found a record marker after ' int2str(bytenum) ' bytes!']);
-                             go_back_to_start_of_loop = 1;
-                             break; % from 'for' loop
-                         end
-                     end
-                 end
-
-                 % if we made it through the approximate length of 5 records without
-                 % finding a marker, abandon ship.
-                 if bytenum == RECORD_SIZE*5
-
-                     disp(['Loading failed at block number ' int2str(index) '. Found ' ...
-                         int2str(nsamples) ' samples.'])
-
-                     break; % from 'while' loop
-
-                 end
-             
-             end
-             
-         end
-         
+        % indexing into 1024 length chunks
+        
+        % use for loop
+        
+        tf = false(length(m.Data)*1024,1);
+        tf(range_pts) = true;
+        
+        C = cell(length(m.Data),1);
+        for i = 1:length(m.Data)
+            
+            if any(tf(1024*(i-1)+1:1024*i))
+                
+                disp('ahoy')
+                
+                C{i} = m.Data(i).block(tf(1024*(i-1)+1:1024*i));
+                
+            end
+            
+        end
+        
+        data = vertcat(C{:}); %TODO
         
         % data points
         
