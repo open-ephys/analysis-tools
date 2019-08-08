@@ -273,7 +273,6 @@ elseif strcmp(filetype, 'continuous')
     elseif ~isempty(range_pts)
         
         %TODO
-         keyboard
          
          if (version >= 0.1)
              if version >= 0.2
@@ -281,7 +280,7 @@ elseif strcmp(filetype, 'continuous')
                      'Format',{'int64',1,'timestamp';...
                      'uint16',1,'nsamples';...
                      'uint16',1,'recNum';...
-                     'int16',[1024, 1],'block';...
+                     'uint16',[1024, 1],'block';...
                      'uint8',[1, 10],'marker'},...
                      'Offset',1024,'Repeat',Inf);
                  
@@ -312,29 +311,54 @@ elseif strcmp(filetype, 'continuous')
         tf = false(length(m.Data)*1024,1);
         tf(range_pts) = true;
         
-        C = cell(length(m.Data),1);
+        Cblk = cell(length(m.Data),1);
+        Cts = cell(length(m.Data),1);
+        Cns = cell(length(m.Data),1);
+        Ctsinterp = cell(length(m.Data),1);
+        
+         if version >= 0.2
+            
+             Crn = cell(length(m.Data),1);
+             
+         end
+        
         for i = 1:length(m.Data)
             
             if any(tf(1024*(i-1)+1:1024*i))
+                                
+                Cblk{i} = m.Data(i).block(tf(1024*(i-1)+1:1024*i));
+                Cts{i} = double(m.Data(i).timestamp);
+                Cns{i} = double(m.Data(i).nsamples);
                 
-                disp('ahoy')
+                if version >= 0.2
+                    
+                    Crn{i} = double(m.Data(i).recNum);
+                    
+                end
                 
-                C{i} = m.Data(i).block(tf(1024*(i-1)+1:1024*i));
+                tsvec = Cts{i}:Cts{i}+Cns{i}-1;
+                
+                Ctsinterp{i} = tsvec(tf(1024*(i-1)+1:1024*i));                
                 
             end
             
         end
         
-        data = vertcat(C{:}); %TODO
+        data = vertcat(Cblk{:});
         
-        % data points
+        data = double(swapbytes(data)); % big endian
         
+        info.ts = [Cts{:}];
+        info.nsamples = [Cns{:}];
         
-        % use for loop and memmapfile
+        if version >= 0.2 
+            info.recNum = [Crn{:}];
+        end
         
+        index = length(info.nsamples);
+        current_sample = length(range_pts);
         
-        
-        
+        timestamps = [Ctsinterp{:}]';        
         
     end
     
@@ -350,31 +374,35 @@ elseif strcmp(filetype, 'continuous')
     % convert to microvolts
     data = data.*info.header.bitVolts;
     
-    timestamps = nan(size(data));
+    if isempty(range_pts)
     
-    current_sample = 0;
-    
-    if version >= 0.1
-        
-        for record = 1:length(info.ts)
+        timestamps = nan(size(data));
 
-            ts_interp = info.ts(record):info.ts(record)+info.nsamples(record);
+        current_sample = 0;
 
-            timestamps(current_sample+1:current_sample+info.nsamples(record)) = ts_interp(1:end-1);
+        if version >= 0.1
 
-            current_sample = current_sample + info.nsamples(record);
+            for record = 1:length(info.ts)
+
+                ts_interp = info.ts(record):info.ts(record)+info.nsamples(record);
+
+                timestamps(current_sample+1:current_sample+info.nsamples(record)) = ts_interp(1:end-1);
+
+                current_sample = current_sample + info.nsamples(record);
+            end
+        else % v0.0; NOTE: the timestamps for the last record will not be interpolated
+
+             for record = 1:length(info.ts)-1
+
+                ts_interp = linspace(info.ts(record), info.ts(record+1), info.nsamples(record)+1);
+
+                timestamps(current_sample+1:current_sample+info.nsamples(record)) = ts_interp(1:end-1);
+
+                current_sample = current_sample + info.nsamples(record);
+             end
+
         end
-    else % v0.0; NOTE: the timestamps for the last record will not be interpolated
-        
-         for record = 1:length(info.ts)-1
-
-            ts_interp = linspace(info.ts(record), info.ts(record+1), info.nsamples(record)+1);
-
-            timestamps(current_sample+1:current_sample+info.nsamples(record)) = ts_interp(1:end-1);
-
-            current_sample = current_sample + info.nsamples(record);
-         end
-        
+    
     end
 
     
@@ -432,7 +460,7 @@ elseif strcmp(filetype, 'spikes')
         if current_percent >= last_percent+10
             last_percent=current_percent;
             fprintf(' %d%%',current_percent);
-        end;
+        end
         
         idx = 0;
         
@@ -520,7 +548,7 @@ elseif strcmp(filetype, 'spikes')
     fprintf('\n')
     for ch = 1:num_channels % scale the waveforms
         data(:, :, ch) = double(data(:, :, ch)-32768)./(channel_gains(ch)/1000);
-    end;
+    end
     
     data = data(1:current_spike,:,:);
     timestamps = timestamps(1:current_spike);
