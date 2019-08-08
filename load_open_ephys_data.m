@@ -20,6 +20,12 @@ function [data, timestamps, info] = load_open_ephys_data(filename,varargin)
 %
 %     info: structure with header and other information
 %
+%   Optional Parameter/Value Pairs
+%
+%  'Indices'   row vector of ever increasing positive integers | []
+%              The vector represents the indices for datapoints, allowing
+%              partial reading of the file using memmapfile. If empty, all
+%              the data points will be returned.
 %
 %
 %   DISCLAIMER:
