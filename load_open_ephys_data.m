@@ -286,7 +286,7 @@ elseif strcmp(filetype, 'continuous')
                      'Format',{'int64',1,'timestamp';...
                      'uint16',1,'nsamples';...
                      'uint16',1,'recNum';...
-                     'uint16',[1024, 1],'block';...
+                     'int16',[SAMPLES_PER_RECORD, 1],'block';...
                      'uint8',[1, 10],'marker'},...
                      'Offset',1024,'Repeat',Inf);
                  
@@ -295,7 +295,7 @@ elseif strcmp(filetype, 'continuous')
                  m = memmapfile(filename,....
                      'Format',{'int64',1,'timestamp';...
                      'uint16',1,'nsamples';...
-                     'int16',[1024, 1],'block';...
+                     'int16',[SAMPLES_PER_RECORD, 1],'block';...
                      'uint8',[1, 10],'marker'},...
                      'Offset',1024,'Repeat',Inf); %TODO not tested
                  
@@ -304,16 +304,11 @@ elseif strcmp(filetype, 'continuous')
              m = memmapfile(filename,....
                  'Format',{'uint64',1,'timestamp';...
                  'int16',1,'nsamples';...
-                 'int16',[1024, 1],'block';...
+                 'int16',[SAMPLES_PER_RECORD, 1],'block';...
                  'uint8',[1, 10],'marker'},...
                  'Offset',1024,'Repeat',Inf); %TODO not tested
          end
-         
-        %TODO 
-        % indexing into 1024 length chunks
-        
-        % use for loop
-        
+
         tf = false(length(m.Data)*1024,1);
         tf(range_pts) = true;
         
@@ -330,9 +325,9 @@ elseif strcmp(filetype, 'continuous')
         
         for i = 1:length(m.Data)
             
-            if any(tf(1024*(i-1)+1:1024*i))
+            if any(tf(SAMPLES_PER_RECORD*(i-1)+1:SAMPLES_PER_RECORD*i))
                                 
-                Cblk{i} = m.Data(i).block(tf(1024*(i-1)+1:1024*i));
+                Cblk{i} = m.Data(i).block(tf(1024*(i-1)+1:SAMPLES_PER_RECORD*i));
                 Cts{i} = double(m.Data(i).timestamp);
                 Cns{i} = double(m.Data(i).nsamples);
                 
@@ -344,7 +339,7 @@ elseif strcmp(filetype, 'continuous')
                 
                 tsvec = Cts{i}:Cts{i}+Cns{i}-1;
                 
-                Ctsinterp{i} = tsvec(tf(1024*(i-1)+1:1024*i));                
+                Ctsinterp{i} = tsvec(tf(SAMPLES_PER_RECORD*(i-1)+1:SAMPLES_PER_RECORD*i));                
                 
             end
             
@@ -364,8 +359,62 @@ elseif strcmp(filetype, 'continuous')
         index = length(info.nsamples);
         current_sample = length(range_pts);
         
-        timestamps = [Ctsinterp{:}]';        
+        timestamps = [Ctsinterp{:}]'; 
         
+        %TODO check for corrupted file, not tested
+        if any(info.nsamples ~= SAMPLES_PER_RECORD) && version >= 0.1
+            disp(['  Found corrupted record...searching for record marker.']);
+             
+            k = find(info.nsamples ~= SAMPLES_PER_RECORD,1,'first');
+            ns = info.nsamples(k);
+
+            if version >= 0.2
+                offset = 1024 + RECORD_SIZE * (k-1) + 12;           
+            else
+                offset = 1024 + RECORD_SIZE * (k-1) + 10;            
+            end
+            
+            status = fseek(fid,offset,'bof');
+            
+            %TODO below should be a local function except break
+            
+            % switch to searching for record markers
+            
+            last_ten_bytes = zeros(size(RECORD_MARKER));
+            
+            for bytenum = 1:RECORD_SIZE*5
+                
+                byte = fread(fid, 1, 'uint8');
+                
+                last_ten_bytes = circshift(last_ten_bytes,-1);
+                
+                last_ten_bytes(10) = double(byte);
+                
+                if last_ten_bytes(10) == RECORD_MARKER(end)
+                    
+                    sq_err = sum((last_ten_bytes - RECORD_MARKER).^2);
+                    
+                    if (sq_err == 0)
+                        disp(['   Found a record marker after ' int2str(bytenum) ' bytes!']);
+                        go_back_to_start_of_loop = 1;
+                        break; % from 'for' loop
+                    end
+                end
+            end
+            
+            % if we made it through the approximate length of 5 records without
+            % finding a marker, abandon ship.
+            if bytenum == RECORD_SIZE*5
+                
+                disp(['Loading failed at block number ' int2str(index) '. Found ' ...
+                    int2str(nsamples) ' samples.'])
+                
+                % break; % from 'while' loop
+                
+            end
+                       
+        end
+
     end
     
     % crop data to the correct size
