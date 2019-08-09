@@ -277,8 +277,6 @@ elseif strcmp(filetype, 'continuous')
         end
     
     elseif ~isempty(range_pts)
-        
-        %TODO
          
          if (version >= 0.1)
              if version >= 0.2
@@ -288,7 +286,7 @@ elseif strcmp(filetype, 'continuous')
                      'uint16',1,'recNum';...
                      'int16',[SAMPLES_PER_RECORD, 1],'block';...
                      'uint8',[1, 10],'marker'},...
-                     'Offset',1024,'Repeat',Inf);
+                     'Offset',NUM_HEADER_BYTES,'Repeat',Inf);
                  
              else
                  
@@ -297,7 +295,7 @@ elseif strcmp(filetype, 'continuous')
                      'uint16',1,'nsamples';...
                      'int16',[SAMPLES_PER_RECORD, 1],'block';...
                      'uint8',[1, 10],'marker'},...
-                     'Offset',1024,'Repeat',Inf); %TODO not tested
+                     'Offset',NUM_HEADER_BYTES,'Repeat',Inf); %TODO not tested
                  
              end
          else
@@ -306,10 +304,10 @@ elseif strcmp(filetype, 'continuous')
                  'int16',1,'nsamples';...
                  'int16',[SAMPLES_PER_RECORD, 1],'block';...
                  'uint8',[1, 10],'marker'},...
-                 'Offset',1024,'Repeat',Inf); %TODO not tested
+                 'Offset',NUM_HEADER_BYTES,'Repeat',Inf); %TODO not tested
          end
 
-        tf = false(length(m.Data)*1024,1);
+        tf = false(length(m.Data)*SAMPLES_PER_RECORD,1);
         tf(range_pts) = true;
         
         Cblk = cell(length(m.Data),1);
@@ -327,7 +325,7 @@ elseif strcmp(filetype, 'continuous')
             
             if any(tf(SAMPLES_PER_RECORD*(i-1)+1:SAMPLES_PER_RECORD*i))
                                 
-                Cblk{i} = m.Data(i).block(tf(1024*(i-1)+1:SAMPLES_PER_RECORD*i));
+                Cblk{i} = m.Data(i).block(tf(SAMPLES_PER_RECORD*(i-1)+1:SAMPLES_PER_RECORD*i));
                 Cts{i} = double(m.Data(i).timestamp);
                 Cns{i} = double(m.Data(i).nsamples);
                 
@@ -369,9 +367,9 @@ elseif strcmp(filetype, 'continuous')
             ns = info.nsamples(k);
 
             if version >= 0.2
-                offset = 1024 + RECORD_SIZE * (k-1) + 12;           
+                offset = NUM_HEADER_BYTES + RECORD_SIZE * (k-1) + 12;           
             else
-                offset = 1024 + RECORD_SIZE * (k-1) + 10;            
+                offset = NUM_HEADER_BYTES + RECORD_SIZE * (k-1) + 10;            
             end
             
             status = fseek(fid,offset,'bof');
