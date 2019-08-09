@@ -2,16 +2,20 @@ function [data, timestamps, info] = load_open_ephys_data_faster(filename, vararg
 %
 % [data, timestamps, info] = load_open_ephys_data(filename, [outputFormat])
 %
-%   Loads continuous, event, or spike data files into Matlab.
+%   Loads continuous, event, or spike data files into MATLAB.
 %
 %   Inputs:
 %
 %     filename: path to file
-%     outputFormat: (optional) If omitted, continuous data is output in double format and is scaled to reflect microvolts. 
-%                   If this argument is 'unscaledInt16' and the file contains continuous data, the output data will be in
-%                   int16 format and will not be scaled; this data must be manually converted to a floating-point format
-%                   and multiplied by info.header.bitVolts to obtain microvolt values. This feature is intended to save memory
-%                   for operations involving large amounts of data.
+%     outputFormat: (optional) If omitted, continuous data is output in 
+%                   double format and is scaled to reflect microvolts. If
+%                   this argument is 'unscaledInt16' and the file contains
+%                   continuous data, the output data will be in int16
+%                   format and will not be scaled; this data must be
+%                   manually converted to a floating-point format and
+%                   multiplied by info.header.bitVolts to obtain microvolt
+%                   values. This feature is intended to save memory for
+%                   operations involving large amounts of data.
 %
 %
 %   Outputs:
