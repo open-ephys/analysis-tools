@@ -91,20 +91,30 @@ def XML2Dict(File):
 def GetSamplingRate(File):
     Info = XML2Dict(File)
     Error = 'Cannot parse sample rate. Check your settings.xml file at SIGNALCHAIN>PROCESSOR>Sources/Rhythm FPGA.'
+    SignalChains = [_ for _ in Info.keys() if 'SIGNALCHAIN' in _]
 
     try:
-        if 'SampleRateString' in Info['SIGNALCHAIN']['PROCESSOR']['Sources/Rhythm FPGA']['EDITOR']:
-            Rate = Info['SIGNALCHAIN']['PROCESSOR']['Sources/Rhythm FPGA']['EDITOR']['SampleRateString']
-            Rate = float(Rate.split(' ')[0])*1000
-            return(Rate)
-        elif Info['SIGNALCHAIN']['PROCESSOR']['Sources/Rhythm FPGA']['EDITOR']['SampleRate'] == '17':
-            Rate = 30000
-            return(Rate)
-        else:
-            print(Error); return(None)
-    except:
-        print(Error); return(None)
+        for SignalChain in SignalChains:
+            if 'Sources/Rhythm FPGA' in Info[SignalChain]['PROCESSOR'].keys():
+                if 'SampleRateString' in Info[SignalChain]['PROCESSOR']['Sources/Rhythm FPGA']['EDITOR']:
+                    Rate = Info[SignalChain]['PROCESSOR']['Sources/Rhythm FPGA']['EDITOR']['SampleRateString']
+                    Rate = float(Rate.split(' ')[0])*1000
+                elif Info[SignalChain]['PROCESSOR']['Sources/Rhythm FPGA']['EDITOR']['SampleRate'] == '17':
+                    Rate = 30000
+                elif Info[SignalChain]['PROCESSOR']['Sources/Rhythm FPGA']['EDITOR']['SampleRate'] == '16':
+                    Rate = 25000
+                else:
+                    Rate = None
+            else:
+                Rate = None
 
+        if not Rate:
+            print(Error); return(None)
+        else:
+            return(Rate)
+
+    except Exception as Ex:
+        print(Ex); print(Error); return(None)
 
 
 def GetRecChs(File):
