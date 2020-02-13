@@ -130,7 +130,7 @@ def Load(Folder, Processor=None, Experiment=None, Recording=None, Unit='uV', Cha
 
         print('Loading recording', int(Rec)+1, '...')
         if Exp not in Data[Proc]: Data[Proc][Exp] = {}
-        Data[Proc][Exp][Rec] = np.memmap(File, dtype='int16')
+        Data[Proc][Exp][Rec] = np.memmap(File, dtype='int16', mode='c')
 
 
         Info = literal_eval(open(InfoFiles[F]).read())
