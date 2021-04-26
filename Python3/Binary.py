@@ -111,6 +111,7 @@ def Load(Folder, Processor=None, Experiment=None, Recording=None, Unit='uV', Cha
 
     Data, Rate = {}, {}
     for F,File in enumerate(Files):
+        File = File.replace('\\', '/') # Replace windows file delims
         Exp, Rec, _, Proc = File.split('/')[-5:-1]
         Exp = str(int(Exp[10:])-1)
         Rec = str(int(Rec[9:])-1)
@@ -135,7 +136,7 @@ def Load(Folder, Processor=None, Experiment=None, Recording=None, Unit='uV', Cha
 
         Info = literal_eval(open(InfoFiles[F]).read())
         ProcIndex = [Info['continuous'].index(_) for _ in Info['continuous']
-                     if str(_['recorded_processor_id']) == Proc][0]
+                     if str(_['source_processor_id']) == Proc][0] # Changed to source_processor_id from recorded_processor_id
 
         ChNo = Info['continuous'][ProcIndex]['num_channels']
         if Data[Proc][Exp][Rec].shape[0]%ChNo:
