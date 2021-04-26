@@ -1,14 +1,14 @@
-function [data, timestamps, info] = load_open_ephys_data(filename,varargin)
+function [data, timestamps, info] = load_open_ephys_data_chunked(filename,t1, t2)
 %
-% [data, timestamps, info] = load_open_ephys_data(filename)
-% [data, timestamps, info] = load_open_ephys_data(filename,'Indices',ind)
+% [data, timestamps, info] = load_open_ephys_data_chunked(filename,t1,t2)
 %
 %   Loads continuous, event, or spike data files into Matlab.
 %
 %   Inputs:
 %
 %     filename: path to file
-%
+%     t1: start time in seconds
+%     t2: end time in seconds
 %
 %   Outputs:
 %
@@ -20,13 +20,7 @@ function [data, timestamps, info] = load_open_ephys_data(filename,varargin)
 %
 %     info: structure with header and other information
 %
-%   Optional Parameter/Value Pairs
-%
-%  'Indices'   row vector of ever increasing positive integers | []
-%              The vector represents the indices for datapoints, allowing
-%              partial reading of the file using memmapfile. If empty, all
-%              the data points will be returned.
-%
+
 %
 %   DISCLAIMER:
 %
@@ -57,13 +51,6 @@ function [data, timestamps, info] = load_open_ephys_data(filename,varargin)
 %     <http://www.gnu.org/licenses/>.
 %
 
-p = inputParser;
-p.addRequired('filename');
-p.addParameter('Indices',[],@(x) isempty(x) || isrow(x) && all(diff(x) > 0) ...
-    && all(fix(x) == x) && all(x > 0));
-p.parse(filename,varargin{:});
-
-range_pts = p.Results.Indices;
 
 filetype = filename(max(strfind(filename,'.'))+1:end); % parse filetype
 
@@ -89,9 +76,7 @@ SPIKE_PREALLOC_INTERVAL = 1e6;
 
 if strcmp(filetype, 'events')
     
-    if ~isempty(range_pts)
-        error('events data is not supported for memory mapping yet')
-    end
+
     
     disp(['Loading events file...']);
     
@@ -159,7 +144,8 @@ if strcmp(filetype, 'events')
 elseif strcmp(filetype, 'continuous')
     
     % https://open-ephys.atlassian.net/wiki/spaces/OEW/pages/65667092/Open+Ephys+format#OpenEphysformat-Continuousdatafiles(.continuous)
-    
+    assert(t2 > t1, 't2=%.2f is less than t1=%.2f', t2, t1);
+    assert(t1 >= 0, 't1=%.2f has to be greater than 0 seconds', t1);
     disp(['Loading ' filename '...']);
     
     index = 0;
@@ -178,203 +164,57 @@ elseif strcmp(filetype, 'continuous')
     data = zeros(MAX_NUMBER_OF_CONTINUOUS_SAMPLES, 1);
     info.ts = zeros(1, MAX_NUMBER_OF_RECORDS);
     info.nsamples = zeros(1, MAX_NUMBER_OF_RECORDS);
-    
+    Fs = info.header.sampleRate;
     if version >= 0.2
         info.recNum = zeros(1, MAX_NUMBER_OF_RECORDS);
     end
     
     current_sample = 0;
     
-    RECORD_SIZE = 10 + SAMPLES_PER_RECORD*2 + 10; % size of each continuous record in bytes
+    
+    RECORD_SIZE = 10 + SAMPLES_PER_RECORD*2 + 10 ;% size of each continuous record in bytes
+    blockt1 = (t1*Fs)/SAMPLES_PER_RECORD;
+    inBlock1 = (floor(blockt1) - blockt1)*SAMPLES_PER_RECORD; %%This means, remove this much of the data from the left side
+    
+    blockt2 = (t2*Fs)/SAMPLES_PER_RECORD;
+    inBlock2 = (ceil(blockt2) - blockt2)*SAMPLES_PER_RECORD; %%This means, remove this much of the data from the right side
+
+    
     if version >= 0.2
         RECORD_SIZE = RECORD_SIZE + 2; % include recNum
     end
+    estimatedSeconds = (((filesize-1024)*SAMPLES_PER_RECORD)/(RECORD_SIZE*Fs)); % Subtract 1024 for the header
+    assert(blockt1*RECORD_SIZE+1024 < filesize, 't1=%.2f is greater than the total session duration=%.2f', t1, estimatedSeconds);
     
-    if isempty(range_pts)
+    if(blockt2*RECORD_SIZE+1024 > filesize)
+        inBlock2 = 0; %%Remove nothing from the end if it is greater than the filesize
+    end
         
-        while ftell(fid) + RECORD_SIZE <= filesize % at least one record remains
-
-            go_back_to_start_of_loop = 0;
-
-            index = index + 1;
-
-            if (version >= 0.1)
-                timestamp = fread(fid, 1, 'int64', 0, 'l');
-                nsamples = fread(fid, 1, 'uint16',0,'l');
-
-
-                if version >= 0.2
-                    recNum = fread(fid, 1, 'uint16');
-                end
-
-            else
-                timestamp = fread(fid, 1, 'uint64', 0, 'l');
-                nsamples = fread(fid, 1, 'int16',0,'l');
-            end
-
-
-            if nsamples ~= SAMPLES_PER_RECORD && version >= 0.1
-
-                disp(['  Found corrupted record...searching for record marker.']);
-
-                % switch to searching for record markers
-
-                last_ten_bytes = zeros(size(RECORD_MARKER));
-
-                for bytenum = 1:RECORD_SIZE*5
-
-                    byte = fread(fid, 1, 'uint8');
-
-                    last_ten_bytes = circshift(last_ten_bytes,-1);
-
-                    last_ten_bytes(10) = double(byte);
-
-                    if last_ten_bytes(10) == RECORD_MARKER(end)
-
-                        sq_err = sum((last_ten_bytes - RECORD_MARKER).^2);
-
-                        if (sq_err == 0)
-                            disp(['   Found a record marker after ' int2str(bytenum) ' bytes!']);
-                            go_back_to_start_of_loop = 1;
-                            break; % from 'for' loop
-                        end
-                    end
-                end
-
-                % if we made it through the approximate length of 5 records without
-                % finding a marker, abandon ship.
-                if bytenum == RECORD_SIZE*5
-
-                    disp(['Loading failed at block number ' int2str(index) '. Found ' ...
-                        int2str(nsamples) ' samples.'])
-
-                    break; % from 'while' loop
-
-                end
-
-
-            end
-
-            if ~go_back_to_start_of_loop
-
-                block = fread(fid, nsamples, 'int16', 0, 'b'); % read in data
-
-                fread(fid, 10, 'char*1'); % read in record marker and discard
-
-                data(current_sample+1:current_sample+nsamples) = block;
-
-                current_sample = current_sample + nsamples;
-
-                info.ts(index) = timestamp;
-                info.nsamples(index) = nsamples;
-
-                if version >= 0.2
-                    info.recNum(index) = recNum;
-                end
-
-            end
-
-        end
-    
-    elseif ~isempty(range_pts)
-         
-         if (version >= 0.1)
-             if version >= 0.2
-                 m = memmapfile(filename,....
-                     'Format',{'int64',1,'timestamp';...
-                     'uint16',1,'nsamples';...
-                     'uint16',1,'recNum';...
-                     'int16',[SAMPLES_PER_RECORD, 1],'block';...
-                     'uint8',[1, 10],'marker'},...
-                     'Offset',NUM_HEADER_BYTES,'Repeat',Inf);
-                 
-             else
-                 
-                 m = memmapfile(filename,....
-                     'Format',{'int64',1,'timestamp';...
-                     'uint16',1,'nsamples';...
-                     'int16',[SAMPLES_PER_RECORD, 1],'block';...
-                     'uint8',[1, 10],'marker'},...
-                     'Offset',NUM_HEADER_BYTES,'Repeat',Inf); %TODO not tested
-                 
-             end
-         else
-             m = memmapfile(filename,....
-                 'Format',{'uint64',1,'timestamp';...
-                 'int16',1,'nsamples';...
-                 'int16',[SAMPLES_PER_RECORD, 1],'block';...
-                 'uint8',[1, 10],'marker'},...
-                 'Offset',NUM_HEADER_BYTES,'Repeat',Inf); %TODO not tested
-         end
-
-        tf = false(length(m.Data)*SAMPLES_PER_RECORD,1);
-        tf(range_pts) = true;
+    fseek(fid,NUM_HEADER_BYTES+floor(blockt1)*RECORD_SIZE, 'bof'); % Start at block1
+    while ftell(fid) + RECORD_SIZE <= filesize && index < (ceil(blockt2) - floor(blockt1))% at least one record remains
         
-        Cblk = cell(length(m.Data),1);
-        Cts = cell(length(m.Data),1);
-        Cns = cell(length(m.Data),1);
-        Ctsinterp = cell(length(m.Data),1);
+        go_back_to_start_of_loop = 0;
         
-         if version >= 0.2
+        index = index + 1;
+        
+        if (version >= 0.1)
+            timestamp = fread(fid, 1, 'int64', 0, 'l');
+            nsamples = fread(fid, 1, 'uint16',0,'l');
             
-             Crn = cell(length(m.Data),1);
-             
-         end
-        
-        for i = 1:length(m.Data)
             
-            if any(tf(SAMPLES_PER_RECORD*(i-1)+1:SAMPLES_PER_RECORD*i))
-                                
-                Cblk{i} = m.Data(i).block(tf(SAMPLES_PER_RECORD*(i-1)+1:SAMPLES_PER_RECORD*i));
-                Cts{i} = double(m.Data(i).timestamp);
-                Cns{i} = double(m.Data(i).nsamples);
-                
-                if version >= 0.2
-                    
-                    Crn{i} = double(m.Data(i).recNum);
-                    
-                end
-                
-                tsvec = Cts{i}:Cts{i}+Cns{i}-1;
-                
-                Ctsinterp{i} = tsvec(tf(SAMPLES_PER_RECORD*(i-1)+1:SAMPLES_PER_RECORD*i));                
-                
-            end
-            
-        end
-        
-        data = vertcat(Cblk{:});
-        
-        data = double(swapbytes(data)); % big endian
-        
-        info.ts = [Cts{:}];
-        info.nsamples = [Cns{:}];
-        
-        if version >= 0.2 
-            info.recNum = [Crn{:}];
-        end
-        
-        index = length(info.nsamples);
-        current_sample = length(range_pts);
-        
-        timestamps = [Ctsinterp{:}]'; 
-        
-        %TODO check for corrupted file, not tested
-        if any(info.nsamples ~= SAMPLES_PER_RECORD) && version >= 0.1
-            disp(['  Found corrupted record...searching for record marker.']);
-             
-            k = find(info.nsamples ~= SAMPLES_PER_RECORD,1,'first');
-            ns = info.nsamples(k);
-
             if version >= 0.2
-                offset = NUM_HEADER_BYTES + RECORD_SIZE * (k-1) + 12;           
-            else
-                offset = NUM_HEADER_BYTES + RECORD_SIZE * (k-1) + 10;            
+                recNum = fread(fid, 1, 'uint16');
             end
             
-            status = fseek(fid,offset,'bof');
+        else
+            timestamp = fread(fid, 1, 'uint64', 0, 'l');
+            nsamples = fread(fid, 1, 'int16',0,'l');
+        end
+        
+        
+        if nsamples ~= SAMPLES_PER_RECORD && version >= 0.1
             
-            %TODO below should be a local function except break
+            disp(['  Found corrupted record...searching for record marker.']);
             
             % switch to searching for record markers
             
@@ -388,7 +228,7 @@ elseif strcmp(filetype, 'continuous')
                 
                 last_ten_bytes(10) = double(byte);
                 
-                if last_ten_bytes(10) == RECORD_MARKER(end)
+                if last_ten_bytes(10) == RECORD_MARKER(end);
                     
                     sq_err = sum((last_ten_bytes - RECORD_MARKER).^2);
                     
@@ -407,18 +247,43 @@ elseif strcmp(filetype, 'continuous')
                 disp(['Loading failed at block number ' int2str(index) '. Found ' ...
                     int2str(nsamples) ' samples.'])
                 
-                % break; % from 'while' loop
+                break; % from 'while' loop
                 
             end
-                       
+            
+            
         end
-
+        
+        if ~go_back_to_start_of_loop
+            
+            block = fread(fid, nsamples, 'int16', 0, 'b'); % read in data
+            
+            fread(fid, 10, 'char*1'); % read in record marker and discard
+            
+            data(current_sample+1:current_sample+nsamples) = block;
+            
+            current_sample = current_sample + nsamples;
+            
+            info.ts(index) = timestamp;
+            info.nsamples(index) = nsamples;
+            
+            if version >= 0.2
+                info.recNum(index) = recNum;
+            end
+            
+        end
+        
     end
-    
-    % crop data to the correct size
+
+    % crop data to the correct size and adjust nsamples/ts
     data = data(1:current_sample);
-    info.ts = info.ts(1:index);
-    info.nsamples = info.nsamples(1:index);
+    data               = data(abs(inBlock1)+1:end-abs(inBlock2));
+    info.ts            = info.ts(1:index);
+    info.ts(1)         = info.ts(1) + abs(inBlock1);
+    
+    info.nsamples      = info.nsamples(1:index);
+    info.nsamples(1)   = info.nsamples(1)   - abs(inBlock1);
+    info.nsamples(end) = info.nsamples(end) - abs(inBlock2);
     
     if version >= 0.2
         info.recNum = info.recNum(1:index);
@@ -427,36 +292,35 @@ elseif strcmp(filetype, 'continuous')
     % convert to microvolts
     data = data.*info.header.bitVolts;
     
-    if isempty(range_pts)
-    
-        timestamps = nan(size(data));
 
-        current_sample = 0;
+    timestamps = nan(size(data));
 
-        if version >= 0.1
+    current_sample = 0;
 
-            for record = 1:length(info.ts)
+    if version >= 0.1
 
-                ts_interp = info.ts(record):info.ts(record)+info.nsamples(record);
+        for record = 1:length(info.ts)
 
-                timestamps(current_sample+1:current_sample+info.nsamples(record)) = ts_interp(1:end-1);
+            ts_interp = info.ts(record):info.ts(record)+info.nsamples(record);
 
-                current_sample = current_sample + info.nsamples(record);
-            end
-        else % v0.0; NOTE: the timestamps for the last record will not be interpolated
+            timestamps(current_sample+1:current_sample+info.nsamples(record)) = ts_interp(1:end-1);
 
-             for record = 1:length(info.ts)-1
-
-                ts_interp = linspace(info.ts(record), info.ts(record+1), info.nsamples(record)+1);
-
-                timestamps(current_sample+1:current_sample+info.nsamples(record)) = ts_interp(1:end-1);
-
-                current_sample = current_sample + info.nsamples(record);
-             end
-
+            current_sample = current_sample + info.nsamples(record);
         end
-    
+    else % v0.0; NOTE: the timestamps for the last record will not be interpolated
+
+         for record = 1:length(info.ts)-1
+
+            ts_interp = linspace(info.ts(record), info.ts(record+1), info.nsamples(record)+1);
+
+            timestamps(current_sample+1:current_sample+info.nsamples(record)) = ts_interp(1:end-1);
+
+            current_sample = current_sample + info.nsamples(record);
+         end
+
     end
+    
+  
 
     
     %-----------------------------------------------------------------------
@@ -464,10 +328,6 @@ elseif strcmp(filetype, 'continuous')
     %-----------------------------------------------------------------------
     
 elseif strcmp(filetype, 'spikes')
-    
-    if ~isempty(range_pts)
-        error('spike data is not supported for memory mapping yet')
-    end
 
     disp(['Loading spikes file...']);
     
