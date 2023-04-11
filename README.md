@@ -10,7 +10,7 @@ Both of these packages can be used to read any of the three currently supported 
 
 The `analysis-tools` repository will be kept around for archival purposes, but we do not recommend using it for new projects.
 
-## Usage instructions
+### Usage instructions (Deprecated)
 
 For Matlab:
 - use 'load_open_ephys_data.m' for .continuous, .spikes, and .events files
